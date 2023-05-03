@@ -1,4 +1,4 @@
-module physical_regfile #(
+module fp_physical_regfile #(
     parameter REG_SIZE = 128,
     parameter REG_SIZE_WIDTH = 7
 )
@@ -26,27 +26,21 @@ module physical_regfile #(
     output reg [63:0] prs2_data_second_o,
     output reg [63:0] prs3_data_second_o,
     // Quadruple write port
-    input [REG_SIZE_WIDTH-1:0] alu1_wrb_address_i,
-    input [REG_SIZE_WIDTH-1:0] alu2_wrb_address_i,
     input [REG_SIZE_WIDTH-1:0] falu1_wrb_address_i,
     input [REG_SIZE_WIDTH-1:0] falu2_wrb_address_i,
     input [REG_SIZE_WIDTH-1:0] lsu_wrb_address_i,
-    input [REG_SIZE_WIDTH-1:0] md_wrb_address_i,
-    input [63:0] alu1_wrb_data_i,
-    input [63:0] alu2_wrb_data_i,
+    input [REG_SIZE_WIDTH-1:0] fdivsqrt_wrb_address_i,
     input [63:0] falu1_wrb_data_i,
     input [63:0] falu2_wrb_data_i,
     input [63:0] lsu_wrb_data_i,
-    input [63:0] md_wrb_data_i,
-    input alu1_rcu_resp_valid_i,
-    input alu2_rcu_resp_valid_i,
+    input [63:0] fdivsqrt_wrb_data_i,
     input falu1_rcu_resp_valid_i,
     input falu1_rcu_resp_float_i,
     input falu2_rcu_resp_valid_i,
     input falu2_rcu_resp_float_i,
     input lsu_rcu_resp_valid_i,
     input lsu_rcu_resp_float_i,
-    input md_rcu_resp_valid_i
+    input fdivsqrt_rcu_resp_valid_i
 );
     reg [63:0] registers [REG_SIZE-1:0];
     integer i;
@@ -69,23 +63,17 @@ module physical_regfile #(
                 registers[i] <= 0;
             end
         end else begin
-            if (alu1_rcu_resp_valid_i) begin
-                registers[alu1_wrb_address_i] <= (alu1_wrb_address_i == '0)? 64'b0 : alu1_wrb_data_i;
-            end
-            if (alu2_rcu_resp_valid_i) begin
-                registers[alu2_wrb_address_i] <= (alu2_wrb_address_i == '0)? 64'b0 : alu2_wrb_data_i;
-            end
-            if (falu1_rcu_resp_valid_i & !falu1_rcu_resp_float_i) begin
+            if (falu1_rcu_resp_valid_i & falu1_rcu_resp_float_i) begin
                 registers[falu1_wrb_address_i] <= (falu1_wrb_address_i == '0)? 64'b0 : falu1_wrb_data_i;
             end
-            if (falu2_rcu_resp_valid_i & !falu2_rcu_resp_float_i) begin
+            if (falu2_rcu_resp_valid_i & falu2_rcu_resp_float_i) begin
                 registers[falu2_wrb_address_i] <= (falu2_wrb_address_i == '0)? 64'b0 : falu2_wrb_data_i;
             end
-            if (lsu_rcu_resp_valid_i & !lsu_rcu_resp_float_i) begin
+            if (lsu_rcu_resp_valid_i & lsu_rcu_resp_float_i) begin
                 registers[lsu_wrb_address_i] <= (lsu_wrb_address_i == '0)? 64'b0 : lsu_wrb_data_i;
             end
-            if (md_rcu_resp_valid_i) begin
-                registers[md_wrb_address_i] <= (md_wrb_address_i == '0)? 64'b0 : md_wrb_data_i;
+            if (fdivsqrt_rcu_resp_valid_i) begin
+                registers[fdivsqrt_wrb_address_i] <= (fdivsqrt_wrb_address_i == '0)? 64'b0 : fdivsqrt_wrb_data_i;
             end
         end
     end
@@ -97,4 +85,4 @@ module physical_regfile #(
 
 
 
-endmodule : physical_regfile
+endmodule : fp_physical_regfile

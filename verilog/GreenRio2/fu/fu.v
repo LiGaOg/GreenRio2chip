@@ -1,7 +1,9 @@
 `ifndef FU_V
 `define FU_V
-`ifdef VERILATOR
-`include "params.vh"
+//`define LSU_DONE
+`ifndef SYNTHESIS
+`include "src_new/hehe_cfg.vh"
+`include "../params.vh"
 `endif
 module fu #(
     parameter LSQ_ENTRY_NUM = 8,
@@ -15,29 +17,48 @@ module fu #(
     input global_trap,
     input global_ret,
     input global_predict_miss,
+    input[2:0] csr_fu_frm_i,
     // ALU from RCU
 
     input [XLEN - 1 : 0]                                                                            rcu_fu_alu1_rs1_i,
     input [XLEN - 1 : 0]                                                                            rcu_fu_alu2_rs1_i,
+    input [XLEN - 1 : 0]                                                                            rcu_fu_falu1_rs1_i,
+    input [XLEN - 1 : 0]                                                                            rcu_fu_falu2_rs1_i,
     input [XLEN - 1 : 0]                                                                            rcu_fu_alu1_rs2_i,
     input [XLEN - 1 : 0]                                                                            rcu_fu_alu2_rs2_i,
+    input [XLEN - 1 : 0]                                                                            rcu_fu_falu1_rs2_i,
+    input [XLEN - 1 : 0]                                                                            rcu_fu_falu2_rs2_i,
+    input [XLEN - 1 : 0]                                                                            rcu_fu_falu1_rs3_i,
+    input [XLEN - 1 : 0]                                                                            rcu_fu_falu2_rs3_i,
     input [IMM_LEN - 1 : 0]                                                                         rcu_fu_alu1_imm_data_i,               
     input [IMM_LEN - 1 : 0]                                                                         rcu_fu_alu2_imm_data_i,                        
     input [1 : 0]                                                                                   rcu_fu_alu1_opr1_sel_i,                
     input [1 : 0]                                                                                   rcu_fu_alu2_opr1_sel_i,                
+    input [1 : 0]                                                                                   rcu_fu_falu1_opr1_sel_i,                
+    input [1 : 0]                                                                                   rcu_fu_falu2_opr1_sel_i,                
     input [1 : 0]                                                                                   rcu_fu_alu1_opr2_sel_i,                
     input [1 : 0]                                                                                   rcu_fu_alu2_opr2_sel_i,             
+    input [1 : 0]                                                                                   rcu_fu_falu1_opr2_sel_i,                
+    input [1 : 0]                                                                                   rcu_fu_falu2_opr2_sel_i,             
+    input [1 : 0]                                                                                   rcu_fu_falu1_opr3_sel_i,                
+    input [1 : 0]                                                                                   rcu_fu_falu2_opr3_sel_i,             
                                                             
     input [ROB_INDEX_WIDTH - 1 : 0]                                                                 rcu_fu_alu1_rob_index_i,            
     input [ROB_INDEX_WIDTH - 1 : 0]                                                                 rcu_fu_alu2_rob_index_i,            
+    input [ROB_INDEX_WIDTH - 1 : 0]                                                                 rcu_fu_falu1_rob_index_i,            
+    input [ROB_INDEX_WIDTH - 1 : 0]                                                                 rcu_fu_falu2_rob_index_i,            
     input [PHY_REG_ADDR_WIDTH - 1 : 0]                                                              rcu_fu_alu1_prd_addr_i,             
     input [PHY_REG_ADDR_WIDTH - 1 : 0]                                                              rcu_fu_alu2_prd_addr_i,             
+    input [PHY_REG_ADDR_WIDTH - 1 : 0]                                                              rcu_fu_falu1_prd_addr_i,             
+    input [PHY_REG_ADDR_WIDTH - 1 : 0]                                                              rcu_fu_falu2_prd_addr_i,             
     input                                                                                           rcu_fu_alu1_is_branch_i, // if branch or jump, set 1
     input                                                                                           rcu_fu_alu2_is_branch_i, // if branch or jump, set 1
     input                                                                                           rcu_fu_alu1_is_jump_i, // if jump, set 1    
     input                                                                                           rcu_fu_alu2_is_jump_i, // if jump, set 1    
     input                                                                                           rcu_fu_alu1_req_valid_i,               
     input                                                                                           rcu_fu_alu2_req_valid_i,               
+    input                                                                                           rcu_fu_falu1_req_valid_i,               
+    input                                                                                           rcu_fu_falu2_req_valid_i,               
                                                             
     input                                                                                           rcu_fu_alu1_half_i,             
     input                                                                                           rcu_fu_alu2_half_i,             
@@ -49,21 +70,39 @@ module fu #(
     input [PC_WIDTH-1:0]                                                                            rcu_fu_alu2_predict_pc_i,
     input [2:0]                                                                                     rcu_fu_alu1_func3_i,             //func3
     input [2:0]                                                                                     rcu_fu_alu2_func3_i,             //func3
+    input [4:0]                                                                                     rcu_fu_falu1_func5_i,             //func5
+    input [4:0]                                                                                     rcu_fu_falu2_func5_i,             //func5
     //input [2:0]                                                                                     rcu_fu_alu1_cmp_func_sel_i, 
     //input [2:0]                                                                                     rcu_fu_alu2_cmp_func_sel_i, 
     input                                                                                           rcu_fu_alu1_func_modifier_i,            
     input                                                                                           rcu_fu_alu2_func_modifier_i,            
+    input[2:0]                                                                                           rcu_fu_falu1_rounding_mode_i,            
+    input[2:0]                                                                                          rcu_fu_falu2_rounding_mode_i,            
+    input[1:0]                                                                                           rcu_fu_falu1_fmt_i,            
+    input[1:0]                                                                                           rcu_fu_falu2_fmt_i,            
     // alu to rcu                                                           
     output                                                                                          fu_rcu_alu1_resp_valid_o,  
     output                                                                                          fu_rcu_alu2_resp_valid_o,  
+    output                                                                                          fu_rcu_falu1_resp_valid_o,  
+    output                                                                                          fu_rcu_falu2_resp_valid_o,  
+    output
+    fu_rcu_falu1_resp_float_o,
+    output
+    fu_rcu_falu2_resp_float_o,
     output [ROB_INDEX_WIDTH-1:0]                                                                    fu_rcu_alu1_wrb_rob_index_o,
     output [ROB_INDEX_WIDTH-1:0]                                                                    fu_rcu_alu2_wrb_rob_index_o,
+    output [ROB_INDEX_WIDTH-1:0]                                                                    fu_rcu_falu1_wrb_rob_index_o,
+    output [ROB_INDEX_WIDTH-1:0]                                                                    fu_rcu_falu2_wrb_rob_index_o,
 //    output                                                                                          fu_rcu_alu1_wrb_enable_o, 
 //    output                                                                                          fu_rcu_alu2_wrb_enable_o, 
     output [PHY_REG_ADDR_WIDTH-1:0]                                                                 fu_rcu_alu1_wrb_prd_addr_o,
     output [PHY_REG_ADDR_WIDTH-1:0]                                                                 fu_rcu_alu2_wrb_prd_addr_o,
+    output [PHY_REG_ADDR_WIDTH-1:0]                                                                 fu_rcu_falu1_wrb_prd_addr_o,
+    output [PHY_REG_ADDR_WIDTH-1:0]                                                                 fu_rcu_falu2_wrb_prd_addr_o,
     output [XLEN - 1 : 0]                                                                           fu_rcu_alu1_wrb_data_o,
     output [XLEN - 1 : 0]                                                                           fu_rcu_alu2_wrb_data_o,
+    output [XLEN - 1 : 0]                                                                           fu_rcu_falu1_wrb_data_o,
+    output [XLEN - 1 : 0]                                                                           fu_rcu_falu2_wrb_data_o,
     output                                                                                          fu_rcu_alu1_branch_predict_miss_o,
     output                                                                                          fu_rcu_alu2_branch_predict_miss_o,
     output                                                                                          fu_rcu_alu1_branch_taken_o,
@@ -88,6 +127,26 @@ module fu #(
     output [XLEN - 1:0]                                                                             fu_rcu_md_wrb_data_o,   //  v  1
     output                                                                                          fu_rcu_md_wrb_resp_valid_o,   //  v  2
 
+    input  [FDIVSQRT_DATA_WIDTH - 1 : 0]                                                                  rcu_fu_fdivsqrt_package_i,
+    input                                                                                           rcu_fu_fdivsqrt_req_valid_i,    //  v 1
+    output                                                                                          rcu_fu_fdivsqrt_req_ready_o,    //  v 1
+                                                            
+    // md To rcu                                                            
+    output [PHY_REG_ADDR_WIDTH-1:0]                                                                 fu_rcu_fdivsqrt_wrb_prd_addr_o,
+    output [ROB_INDEX_WIDTH-1 : 0]                                                                  fu_rcu_fdivsqrt_wrb_rob_index_o,
+    output [XLEN - 1:0]                                                                             fu_rcu_fdivsqrt_wrb_data_o,   //  v  1
+    output                                                                                          fu_rcu_fdivsqrt_wrb_resp_valid_o,   //  v  2
+    output
+    fu_rcu_fdivsqrt_wrb_fflags_valid_o,
+    output[4:0]
+    fu_rcu_fdivsqrt_wrb_fflags_o,
+    output fu_rcu_falu1_fflags_ok_o,
+    output[4:0]
+    fu_rcu_falu1_wrb_fflags_o,
+    output fu_rcu_falu2_fflags_ok_o,
+    output[4:0]
+    fu_rcu_falu2_wrb_fflags_o,
+
 //`ifdef LSU_DONE
     //LSU   
     output                                                                                          lsu_rdy_o,
@@ -95,6 +154,8 @@ module fu #(
     // <> RCU
     input                                                                                           rcu_fu_lsu_vld_i,
     input                                                                                           rcu_fu_lsu_ls_i,
+    input [4:0] rcu_fu_func5,
+    input rcu_fu_is_float,
     input  [LDU_OP_WIDTH - 1 : 0]                                                                   rcu_fu_lsu_ld_opcode_i,
     input  [STU_OP_WIDTH - 1 : 0]                                                                   rcu_fu_lsu_st_opcode_i,
     input                                                                                           rcu_fu_lsu_fenced_i,
@@ -107,6 +168,8 @@ module fu #(
     input  [ROB_INDEX_WIDTH - 1 : 0]                                                                rcu_fu_lsu_wakeup_rob_index_i,
     output                                                                                          fu_rcu_lsu_comm_vld_o,
     output [ROB_INDEX_WIDTH - 1 : 0]                                                                fu_rcu_lsu_comm_rob_index_o,
+    output
+    fu_rcu_lsu_comm_is_float_o,
     output [PHY_REG_ADDR_WIDTH - 1 : 0]                                                             fu_rcu_lsu_comm_rd_addr_o,
     output [XLEN - 1 : 0]                                                                           fu_rcu_lsu_comm_data_o,
     output                                                                                          fu_rcu_lsu_exception_vld_o,
@@ -130,6 +193,7 @@ module fu #(
     output                                                                                          fu_l1d_lsu_ld_req_vld_o,
     output  [     ROB_INDEX_WIDTH - 1 : 0]                                                          fu_l1d_lsu_ld_req_rob_index_o,
     output  [    PHY_REG_ADDR_WIDTH - 1 : 0]                                                        fu_l1d_lsu_ld_req_rd_addr_o, // no need
+    output 											    fu_l1d_lsu_ld_req_is_float_o,
     output  [      LDU_OP_WIDTH - 1 : 0]                                                            fu_l1d_lsu_ld_req_opcode_o,
     output  [       ADDR_INDEX_LEN - 1 : 0]                                                         fu_l1d_lsu_ld_req_index_o, 
     output  [      ADDR_OFFSET_LEN - 1 : 0]                                                         fu_l1d_lsu_ld_req_offset_o, 
@@ -150,6 +214,7 @@ module fu #(
     input  [(LSU_ADDR_PIPE_COUNT + LSU_DATA_PIPE_COUNT) * ROB_INDEX_WIDTH - 1 : 0]                  l1d_fu_lsu_wb_rob_index_i,
     input  [LSU_DATA_PIPE_COUNT - 1 : 0]                                                            l1d_fu_lsu_prf_wb_vld_i,
     input  [PHY_REG_ADDR_WIDTH * LSU_DATA_PIPE_COUNT - 1 : 0]                                       l1d_fu_lsu_prf_wb_rd_addr_i,
+    input 											    l1d_fu_lsu_prf_wb_is_float_i,
     input  [XLEN*LSU_DATA_PIPE_COUNT - 1 : 0]                                                       l1d_fu_lsu_prf_wb_data_i,
     // kill                                                 
     output                                                                                          fu_l1d_lsu_kill_req_o,
@@ -208,6 +273,7 @@ module fu #(
     output  [    PHY_REG_ADDR_WIDTH - 1 : 0]                                                            wrd_addr_d,                   
     output  [     ROB_INDEX_WIDTH - 1 : 0]                                                              rrob_index_d,
     output  [    PHY_REG_ADDR_WIDTH - 1 : 0]                                                            rrd_addr_d,                                   
+    output 												rfloat_d,
 `endif // DPRAM64_2R1W
 
     //from rcu
@@ -263,14 +329,24 @@ module fu #(
 // alu => rcu
 wire fu_alu1_req_ready;
 wire fu_alu2_req_ready;
+wire fu_falu1_req_ready;
+wire fu_falu2_req_ready;
 wire [XLEN - 1 : 0] alu1_result;
 wire [XLEN - 1 : 0] alu2_result;
+wire [XLEN - 1 : 0] falu1_result;
+wire [XLEN - 1 : 0] falu2_result;
 wire [PHY_REG_ADDR_WIDTH-1:0] alu1_prd_addr;
 wire [PHY_REG_ADDR_WIDTH-1:0] alu2_prd_addr;
+wire [PHY_REG_ADDR_WIDTH-1:0] falu1_prd_addr;
+wire [PHY_REG_ADDR_WIDTH-1:0] falu2_prd_addr;
 wire alu1_resp_valid;
 wire alu2_resp_valid;
+wire falu1_resp_valid;
+wire falu2_resp_valid;
 wire [ROB_INDEX_WIDTH - 1 : 0] alu1_wrb_rob_index;
 wire [ROB_INDEX_WIDTH - 1 : 0] alu2_wrb_rob_index;
+wire [ROB_INDEX_WIDTH - 1 : 0] falu1_wrb_rob_index;
+wire [ROB_INDEX_WIDTH - 1 : 0] falu2_wrb_rob_index;
 // wire alu_exception_valid;
 // wire [EXCEPTION_CODE_WIDTH - 1 : 0] alu_exception_code;
 // alu <> pc
@@ -284,8 +360,14 @@ wire [VIRTUAL_ADDR_LEN-1:0] alu1_next_pc;  //pc + 4 of the currently done instr
 wire [VIRTUAL_ADDR_LEN-1:0] alu2_next_pc;  //pc + 4 of the currently done instr
 reg [XLEN - 1 : 0] alu1_opr1;
 reg [XLEN - 1 : 0] alu2_opr1;
+reg [XLEN - 1 : 0] falu1_opr1;
+reg [XLEN - 1 : 0] falu2_opr1;
 reg [XLEN - 1 : 0] alu1_opr2;
 reg [XLEN - 1 : 0] alu2_opr2;
+reg [XLEN - 1 : 0] falu1_opr2;
+reg [XLEN - 1 : 0] falu2_opr2;
+reg [XLEN - 1 : 0] falu1_opr3;
+reg [XLEN - 1 : 0] falu2_opr3;
 // cmp => rcu
 /*verilator lint_off UNUSED */
 // wire cmp_ready;
@@ -309,6 +391,8 @@ wire [PC_WIDTH - 1 : 0] alu1_final_next_pc;
 wire [PC_WIDTH - 1 : 0] alu2_final_next_pc;
 wire flush = global_predict_miss | global_ret | global_trap;
 
+wire [XLEN - 1 : 0] fu_rcu_lsu_comm_data_w;
+assign fu_rcu_lsu_comm_data_o = fu_rcu_lsu_comm_data_w; 
 assign alu1_imm_64 = {{XLEN_M_IMMLEN{rcu_fu_alu1_imm_data_i[IMM_LEN-1]}}, rcu_fu_alu1_imm_data_i};
 assign alu2_imm_64 = {{XLEN_M_IMMLEN{rcu_fu_alu2_imm_data_i[IMM_LEN-1]}}, rcu_fu_alu2_imm_data_i};
 assign alu1_pc_64 = {{32'b0}, rcu_fu_alu1_pc_i};
@@ -316,6 +400,8 @@ assign alu2_pc_64 = {{32'b0}, rcu_fu_alu2_pc_i};
 
 assign fu_rcu_alu1_resp_valid_o = alu1_resp_valid;
 assign fu_rcu_alu2_resp_valid_o = alu2_resp_valid;
+assign fu_rcu_falu1_resp_valid_o = falu1_resp_valid;
+assign fu_rcu_falu2_resp_valid_o = falu2_resp_valid;
 //assign fu_rcu_alu1_wrb_enable_o = 
 //                        (alu1_is_branch & alu1_is_jump) |   // jump
 //                        (~alu1_is_branch & alu1_resp_valid);  // op 
@@ -326,6 +412,8 @@ assign fu_rcu_alu1_wrb_data_o = (alu1_is_jump) ? {{XLEN_M_PCWIDTH{1'b0}}, alu1_n
                             alu1_result;  //op
 assign fu_rcu_alu2_wrb_data_o = (alu2_is_jump) ? {{XLEN_M_PCWIDTH{1'b0}}, alu2_next_pc} : // jal
                             alu2_result;  //op*verilator lint_on UNUSED */
+assign fu_rcu_falu1_wrb_data_o = falu1_result;
+assign fu_rcu_falu2_wrb_data_o = falu2_result;
 // assign exception_valid_o = alu_exception_valid | lsu_exception_valid;
 // assign ecause_o = lsu_exception_valid ? lsu_exception_code : alu_exception_code; // lsu > alu, cuz lsu should be a ealier exception
 // <> fetch
@@ -364,14 +452,23 @@ assign alu2_cmp_valid = rcu_fu_alu2_is_branch_i & ~rcu_fu_alu2_is_jump_i;
 
 reg [2:0] alu1_func_sel;
 reg [2:0] alu2_func_sel;
+reg [4:0] falu1_func_sel;
+reg [4:0] falu2_func_sel;
 
 wire fu_md_muldiv;
+wire fu_fdivsqrt_divsqrt;
 wire [2: 0] fu_md_func;
+wire [4: 0] fu_fdivsqrt_func;
 wire [2 : 0]                                fu_md_func3;
+wire [4 : 0]				    fu_fdivsqrt_func5;	
 wire                                        fu_md_half;
+wire [2:0]				    fu_fdivsqrt_rounding_mode;
+wire [1:0]                                  fu_fdivsqrt_fmt;
 
+assign fu_fdivsqrt_divsqrt = (fu_fdivsqrt_func5 == 5'd26) ? 1'b0 : 1'b1;
 assign fu_md_muldiv =   fu_md_func3[2];
 assign fu_md_func = {fu_md_half, fu_md_func3[1: 0]};
+assign fu_fdivsqrt_func = fu_fdivsqrt_func5;
 
 assign fu_rcu_alu1_branch_taken_o = alu1_cmp_result;
 assign fu_rcu_alu2_branch_taken_o = alu2_cmp_result;
@@ -380,6 +477,10 @@ wire [ROB_INDEX_WIDTH - 1 : 0]              fu_md_rob_index;
 wire [PHY_REG_ADDR_WIDTH - 1 : 0]           fu_md_prd_addr;
 wire [XLEN - 1 : 0]                         fu_md_oprd1;
 wire [XLEN - 1 : 0]                         fu_md_oprd2;
+wire [ROB_INDEX_WIDTH - 1 : 0]              fu_fdivsqrt_rob_index;
+wire [PHY_REG_ADDR_WIDTH - 1 : 0]           fu_fdivsqrt_prd_addr;
+wire [XLEN - 1 : 0]                         fu_fdivsqrt_oprd1;
+wire [XLEN - 1 : 0]                         fu_fdivsqrt_oprd2;
 
 assign {
     fu_md_rob_index,
@@ -389,6 +490,16 @@ assign {
     fu_md_func3,
     fu_md_half
 } = rcu_fu_md_package_i;
+
+assign {
+    fu_fdivsqrt_rob_index,
+    fu_fdivsqrt_prd_addr,
+    fu_fdivsqrt_oprd1,
+    fu_fdivsqrt_oprd2,
+    fu_fdivsqrt_func5,
+    fu_fdivsqrt_rounding_mode,
+    fu_fdivsqrt_fmt
+} = rcu_fu_fdivsqrt_package_i;
 
 always @(*) begin
     if(rcu_fu_alu1_req_valid_i) begin
@@ -454,6 +565,40 @@ always @(*) begin
     end
 end
 
+
+
+always @(*) begin
+    if(rcu_fu_falu1_req_valid_i) begin
+        case (rcu_fu_falu1_opr1_sel_i)
+            ALU_SEL_REG : falu1_opr1 = rcu_fu_falu1_rs1_i;
+            default : falu1_opr1 = 0;
+        endcase
+        case (rcu_fu_falu1_opr2_sel_i)
+            ALU_SEL_REG : falu1_opr2 = rcu_fu_falu1_rs2_i;
+            default : falu1_opr2 = 0;
+        endcase
+        case (rcu_fu_falu1_opr3_sel_i)
+            ALU_SEL_REG : falu1_opr3 = rcu_fu_falu1_rs3_i;
+            default : falu1_opr3 = 0;
+        endcase
+    end
+    if(rcu_fu_falu2_req_valid_i) begin
+        case (rcu_fu_falu2_opr1_sel_i)
+            ALU_SEL_REG : falu2_opr1 = rcu_fu_falu2_rs1_i;
+            default : falu2_opr1 = 0;
+        endcase
+        case (rcu_fu_falu2_opr2_sel_i)
+            ALU_SEL_REG : falu2_opr2 = rcu_fu_falu2_rs2_i;
+            default : falu2_opr2 = 0;
+        endcase
+        case (rcu_fu_falu2_opr3_sel_i)
+            ALU_SEL_REG : falu2_opr3 = rcu_fu_falu2_rs3_i;
+            default : falu2_opr3 = 0;
+        endcase
+    end
+    falu1_func_sel = rcu_fu_falu1_func5_i;
+    falu2_func_sel = rcu_fu_falu2_func5_i;
+end
 
 alu alu1(
     .clk(clk),
@@ -526,6 +671,56 @@ alu alu2(
     .cmp_result_o(alu2_cmp_result)
 );
 
+falu falu1(
+	.clk(clk),
+	.rstn(rstn),
+	.wfi(wfi),
+	.trap(flush),
+
+	.opr1_i(falu1_opr1),
+	.opr2_i(falu1_opr2),
+	.opr3_i(falu1_opr3),
+	.falu_function_select_i(falu1_func_sel),
+	.falu_rounding_mode_i(rcu_fu_falu1_rounding_mode_i),
+	.fcsr_frm_i(csr_fu_frm_i),
+	.falu_fmt_i(rcu_fu_falu1_fmt_i),
+	.rob_index_i(rcu_fu_falu1_rob_index_i),
+	.prd_addr_i(rcu_fu_falu1_prd_addr_i),
+	.rcu_fu_falu_req_valid_i(rcu_fu_falu1_req_valid_i),
+	.fu_rcu_falu_resp_valid_o(falu1_resp_valid),
+	.prd_addr_o(fu_rcu_falu1_wrb_prd_addr_o),
+	.rob_index_o(fu_rcu_falu1_wrb_rob_index_o),
+	.falu_result_o(falu1_result),
+	.fu_rcu_falu_fflags_o(fu_rcu_falu1_wrb_fflags_o),
+	.fflags_valid_o(fu_rcu_falu1_fflags_ok_o),
+	.fu_rcu_falu_resp_float_o(fu_rcu_falu1_resp_float_o)
+);
+
+falu falu2(
+	.clk(clk),
+	.rstn(rstn),
+	.wfi(wfi),
+	.trap(flush),
+
+	.opr1_i(falu2_opr1),
+	.opr2_i(falu2_opr2),
+	.opr3_i(falu2_opr3),
+	.falu_function_select_i(falu2_func_sel),
+	.falu_rounding_mode_i(rcu_fu_falu2_rounding_mode_i),
+	.fcsr_frm_i(csr_fu_frm_i),
+	.falu_fmt_i(rcu_fu_falu2_fmt_i),
+	.rob_index_i(rcu_fu_falu2_rob_index_i),
+	.prd_addr_i(rcu_fu_falu2_prd_addr_i),
+	.rcu_fu_falu_req_valid_i(rcu_fu_falu2_req_valid_i),
+	.fu_rcu_falu_resp_valid_o(falu2_resp_valid),
+	.prd_addr_o(fu_rcu_falu2_wrb_prd_addr_o),
+	.rob_index_o(fu_rcu_falu2_wrb_rob_index_o),
+	.falu_result_o(falu2_result),
+	.fu_rcu_falu_fflags_o(fu_rcu_falu2_wrb_fflags_o),
+	.fflags_valid_o(fu_rcu_falu2_fflags_ok_o),
+	.fu_rcu_falu_resp_float_o(fu_rcu_falu2_resp_float_o)
+);
+
 md MulDiv(
     .clk(clk),
     .rst(rstn),
@@ -545,6 +740,30 @@ md MulDiv(
     .md_fu_wrb_resp_valid_o(fu_rcu_md_wrb_resp_valid_o)
 );
 
+fdivsqrt fdivsqrt_u(
+	.clk(clk),
+	.rst(rstn),
+	.trap(flush),
+
+	.fu_fdivsqrt_prd_addr_i(fu_fdivsqrt_prd_addr),
+	.fu_fdivsqrt_oprd1_i(fu_fdivsqrt_oprd1),
+	.fu_fdivsqrt_oprd2_i(fu_fdivsqrt_oprd2),
+	.fu_fdivsqrt_rob_index_i(fu_fdivsqrt_rob_index),
+	.fu_fdivsqrt_func_sel_i(fu_fdivsqrt_func),
+	.fu_fdivsqrt_divsqrt_i(fu_fdivsqrt_divsqrt),
+	.fu_fdivsqrt_rounding_mode_i(fu_fdivsqrt_rounding_mode),
+	.fu_fdivsqrt_fcsr_frm_i(csr_fu_frm_i),
+	.fu_fdivsqrt_fmt_i(fu_fdivsqrt_fmt),
+	.fu_fdivsqrt_req_valid_i(rcu_fu_fdivsqrt_req_valid_i),
+	.fu_fdivsqrt_req_ready_o(rcu_fu_fdivsqrt_req_ready_o),
+	.fdivsqrt_fu_wrb_prd_addr_o(fu_rcu_fdivsqrt_wrb_prd_addr_o),
+	.fdivsqrt_fu_wrb_rob_index_o(fu_rcu_fdivsqrt_wrb_rob_index_o),
+	.fdivsqrt_fu_wrb_data_o(fu_rcu_fdivsqrt_wrb_data_o),
+	.fdivsqrt_fu_wrb_resp_valid_o(fu_rcu_fdivsqrt_wrb_resp_valid_o),
+	.fu_rcu_fdivsqrt_fflags_vld_o(fu_rcu_fdivsqrt_wrb_fflags_valid_o),
+	.fu_rcu_fdivsqrt_fflags_o(fu_rcu_fdivsqrt_wrb_fflags_o)
+);
+
 lsuv1 #(
     .LSQ_ENTRY_NUM(LSQ_ENTRY_NUM),
     .LSQ_ENTRY_NUM_WIDTH(LSQ_ENTRY_NUM_WIDTH)
@@ -557,6 +776,8 @@ lsuv1 #(
     
     .rcu_lsu_vld_i(rcu_fu_lsu_vld_i),
     .rcu_lsu_ls_i(rcu_fu_lsu_ls_i),
+    .rcu_lsu_is_float_i(rcu_fu_is_float),
+    .rcu_lsu_func5_i(rcu_fu_func5),
     .rcu_lsu_ld_opcode_i(rcu_fu_lsu_ld_opcode_i),
     .rcu_lsu_st_opcode_i(rcu_fu_lsu_st_opcode_i),
     .rcu_lsu_fenced_i(rcu_fu_lsu_fenced_i),
@@ -569,8 +790,9 @@ lsuv1 #(
     .rcu_lsu_wakeup_rob_index_i(rcu_fu_lsu_wakeup_rob_index_i),
     .lsu_rcu_comm_vld_o(fu_rcu_lsu_comm_vld_o),
     .lsu_rcu_comm_rob_index_o(fu_rcu_lsu_comm_rob_index_o),
+    .lsu_rcu_comm_is_float_o(fu_rcu_lsu_comm_is_float_o),
     .lsu_rcu_comm_rd_addr_o(fu_rcu_lsu_comm_rd_addr_o),
-    .lsu_rcu_comm_data_o(fu_rcu_lsu_comm_data_o),
+    .lsu_rcu_comm_data_o(fu_rcu_lsu_comm_data_w),
     .lsu_rcu_exception_vld_o(fu_rcu_lsu_exception_vld_o),
     .lsu_rcu_ecause_o(fu_rcu_lsu_ecause_o),
 
@@ -588,6 +810,7 @@ lsuv1 #(
     .lsu_l1d_ld_req_vld_o(fu_l1d_lsu_ld_req_vld_o),
     .lsu_l1d_ld_req_rob_index_o(fu_l1d_lsu_ld_req_rob_index_o),
     .lsu_l1d_ld_req_rd_addr_o(fu_l1d_lsu_ld_req_rd_addr_o),
+    .lsu_l1d_ld_req_is_float_o(fu_l1d_lsu_ld_req_is_float_o),
     .lsu_l1d_ld_req_opcode_o(fu_l1d_lsu_ld_req_opcode_o),
     .lsu_l1d_ld_req_index_o(fu_l1d_lsu_ld_req_index_o),
     .lsu_l1d_ld_req_offset_o(fu_l1d_lsu_ld_req_offset_o),
@@ -608,6 +831,7 @@ lsuv1 #(
     .l1d_lsu_wb_rob_index_i(l1d_fu_lsu_wb_rob_index_i),
     .l1d_lsu_prf_wb_vld_i(l1d_fu_lsu_prf_wb_vld_i),
     .l1d_lsu_prf_wb_rd_addr_i(l1d_fu_lsu_prf_wb_rd_addr_i),
+    .l1d_lsu_prf_wb_is_float_i(l1d_fu_lsu_prf_wb_is_float_i),
     .l1d_lsu_prf_wb_data_i(l1d_fu_lsu_prf_wb_data_i),
 
     .lsu_l1d_kill_req_o(fu_l1d_lsu_kill_req_o),
@@ -653,6 +877,7 @@ lsuv1 #(
     .wrd_addr_d(wrd_addr_d),                   
     .rrob_index_d(rrob_index_d),
     .rrd_addr_d(rrd_addr_d),                                   
+    .rfloat_d(rfloat_d),
 `endif // DPRAM64_2R1W
 
     .lsu_wb_cyc_o(fu_wb_lsu_cyc_o),

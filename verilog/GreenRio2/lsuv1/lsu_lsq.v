@@ -1,8 +1,8 @@
 `ifndef _LSU_LSQ_V_
 `define _LSU_LSQ_V_
-`ifdef VERILATOR
-`include "params.vh"
-`endif
+`ifndef VCS
+`include "../params.vh"
+`endif // VCS
 
 module lsu_lsq 
 #(
@@ -22,6 +22,8 @@ module lsu_lsq
     input  [ASID_WIDTH - 1 : 0]                     rcu_lsq_sfence_vma_asid_i,
     input  [ROB_INDEX_WIDTH - 1 : 0]                rcu_lsq_rob_index_i,
     input  [PHY_REG_ADDR_WIDTH - 1 : 0]             rcu_lsq_rd_addr_i,
+    input 					    rcu_lsq_is_float_i,
+    input [4:0]					    rcu_lsq_func5_i,
     input  [XLEN - 1 : 0]                           rcu_lsq_data_i,
 
     input                                           rcu_lsq_wakeup_i,
@@ -29,6 +31,8 @@ module lsu_lsq
 
     output                                          lsq_rcu_comm_vld_o,
     output [ROB_INDEX_WIDTH - 1 : 0]                lsq_rcu_comm_rob_index_o,
+    output 					    lsq_rcu_comm_is_float_o,
+    output [4:0]				    lsq_rcu_comm_func5_o,
     output [PHY_REG_ADDR_WIDTH - 1 : 0]             lsq_rcu_comm_rd_addr_o,
     output                                          lsq_rcu_comm_exception_vld_o,
     output [EXCEPTION_CAUSE_WIDTH - 1 : 0]          lsq_rcu_comm_ecause_o,
@@ -37,6 +41,7 @@ module lsu_lsq
     input [(LSU_ADDR_PIPE_COUNT + LSU_DATA_PIPE_COUNT + 1) * ROB_INDEX_WIDTH - 1: 0]                    wb_arb_lsq_wb_rob_index_i   ,
     input                                                                                               wb_arb_lsq_prf_wb_vld_i,
     input  [PHY_REG_ADDR_WIDTH - 1 : 0]                                                                 wb_arb_lsq_prf_wb_rd_addr_i,
+    input 												wb_arb_lsq_prf_wb_is_float_i,
     input                                                                                               wb_arb_rdy_i,
 
     // <> MC
@@ -62,6 +67,7 @@ module lsu_lsq
     output                                          lsq_l1d_ld_req_vld_o,
     output  [     ROB_INDEX_WIDTH - 1 : 0]          lsq_l1d_ld_req_rob_index_o,
     output  [    PHY_REG_ADDR_WIDTH - 1 : 0]        lsq_l1d_ld_req_rd_addr_o, // no need
+    output					    lsq_l1d_ld_req_is_float_o,
     output  [      LDU_OP_WIDTH - 1 : 0]            lsq_l1d_ld_req_opcode_o,
     output  [       ADDR_INDEX_LEN - 1 : 0]         lsq_l1d_ld_req_index_o, 
     output  [      ADDR_OFFSET_LEN - 1 : 0]         lsq_l1d_ld_req_offset_o, 
@@ -130,6 +136,7 @@ module lsu_lsq
     output                                          lsq_bus_ctrl_req_is_fence_o,
     output  [     ROB_INDEX_WIDTH - 1 : 0]          lsq_bus_ctrl_req_rob_index_o,
     output  [    PHY_REG_ADDR_WIDTH - 1 : 0]        lsq_bus_ctrl_req_rd_addr_o,
+    output					    lsq_bus_ctrl_req_is_float_o,
     output  [      STU_OP_WIDTH - 1 : 0]            lsq_bus_ctrl_req_opcode_o,
     output  [       PHYSICAL_ADDR_LEN - 1 : 0]      lsq_bus_ctrl_req_paddr_o, 
     output  [              XLEN - 1 : 0]            lsq_bus_ctrl_req_data_o
@@ -146,6 +153,9 @@ reg   [LSQ_ENTRY_NUM_WIDTH - 1: 0]                                          ld_i
 reg                                                                         ld_vld_q;
 reg                                                                         ld_vld_qq;
 reg   [VIRTUAL_ADDR_TAG_LEN - 1 : 0]                                        dtlb_vtag_q;
+reg                                                                         lsq_exception_lock;
+wire                                                                        lsq_exception_set;
+
 
 wire                                                                        lsq_enque;
 wire                                                                        wb_enque_bypass;
@@ -158,11 +168,11 @@ wire [LSQ_ENTRY_NUM_WIDTH - 1: 0]                                           issu
 wire[LSQ_ENTRY_NUM_WIDTH - 1: 0]                                            last_issue = (issued == 0) ? '1 : issued - 1;
 wire                                                                        iss_issuedentry_bypass;
 wire                                                                        iss_issued_entry_bypass_fenced_rdy;
-wire                                                                        iss_nxt_entry_bypass;
+wire                                                                        iss_nxt_entry_bypass_vld;
 wire                                                                        iss_nxt_entry_bypass_fenced_rdy;
 wire [LSQ_ENTRY_NUM_WIDTH - 1: 0]                                           final_iss;
 wire                                                                        final_iss_bypass;
-wire                                                                        iss_issued_entry_bypass;
+wire                                                                        iss_issued_entry_bypass_vld;
 wire                                                                        lsq_issued_entry_awake;
 wire                                                                        lsq_issued_entry_rdy;
 wire                                                                        lsq_nxt_entry_rdy;
@@ -255,6 +265,8 @@ wire   [LSQ_ENTRY_TAG_WIDTH - 1 : 0]                                        lsq_
 wire   [LSQ_ENTRY_INDEX_WIDTH -1 : 0]                                       lsq_entry_index_vec         [LSQ_ENTRY_NUM - 1 : 0];
 wire   [LSQ_ENTRY_OFFSET_WIDTH - 1 : 0]                                     lsq_entry_offset_vec        [LSQ_ENTRY_NUM - 1 : 0];
 wire   [LSQ_ENTRY_ROB_INDEX_WIDTH - 1 : 0]                                  lsq_entry_rob_index_vec     [LSQ_ENTRY_NUM - 1 : 0];
+wire   									    lsq_entry_is_float_vec     [LSQ_ENTRY_NUM - 1 : 0];
+wire [4:0]								    lsq_entry_func5_vec[LSQ_ENTRY_NUM - 1 :0];
 wire                                                                        lsq_entry_virt_vec          [LSQ_ENTRY_NUM - 1 : 0];
 wire                                                                        lsq_entry_awake_vec         [LSQ_ENTRY_NUM - 1 : 0];
 wire                                                                        lsq_entry_exec_vec          [LSQ_ENTRY_NUM - 1 : 0];
@@ -263,8 +275,10 @@ wire   [LSQ_ENTRY_RD_ADDR_WIDTH - 1 : 0]                                    lsq_
 wire   [XLEN - 1 : 0]                                                       lsq_entry_data_vec          [LSQ_ENTRY_NUM - 1 : 0];
 wire                                                                        lsq_entry_exception_vld_vec [LSQ_ENTRY_NUM - 1 : 0]; // one-hot or 0
 wire   [EXCEPTION_CAUSE_WIDTH - 1 : 0]                                      lsq_entry_ecause_vec        [LSQ_ENTRY_NUM - 1 : 0]; // one-hot or 0
+
 wire                                                                        lsq_entry_dtlb_virt;
 wire [LSQ_ENTRY_TAG_WIDTH - 1 : 0]                                          lsq_entry_dtlb_tag;
+wire                                                                        dtlb_exception_vld;
 wire [LSQ_ENTRY_OPCODE_WIDTH - 1 : 0]                                       lsq_entry_init_opcode;
 wire [VIRTUAL_ADDR_TAG_LEN - 1 : 0]                                         lsq_entry_init_vtag;
 wire [ADDR_INDEX_LEN - 1 : 0]                                               lsq_entry_init_index;
@@ -284,25 +298,32 @@ assign lsq_rdy_o =  (
                         (head == tail) & lsq_deque |
                         (head == tail) & ~lsq_entry_vld_vec[head]
                     ) &
-                    ~(rcu_lsq_vld_i & rcu_lsq_ls_i & (rcu_lsq_opcode_i == STU_SFENCE_VMA) & lsq_rcu_sfence_vma_rdy) // sfence vma reg full
+                    ~(rcu_lsq_vld_i & rcu_lsq_ls_i & (rcu_lsq_opcode_i == STU_SFENCE_VMA) & ~lsq_rcu_sfence_vma_rdy) // sfence vma reg full
                     ;
 
 assign wb_deque_bypass = |(lsq_entry_succ_vld_vec & lsq_entry_head_vec); // the succ entry is head
 assign wb_enque_bypass = (head == tail) & lsq_deque ;
 
 
-assign lsq_rcu_comm_vld_o = ((lsq_deque & lsq_entry_no_prf_wb) | wb_arb_lsq_prf_wb_vld_i) & ~flush;
-assign lsq_rcu_comm_rob_index_o = (lsq_deque & lsq_entry_no_prf_wb) ? lsq_entry_rob_index_vec[head] : lsq_entry_rob_index_vec[prf_wb_entry];
+assign lsq_rcu_comm_vld_o = (
+                                lsq_deque & lsq_entry_no_prf_wb | 
+                                lsq_entry_vld_vec[head] & lsq_entry_exception_vld_vec[head] & ~lsq_exception_lock |
+                                wb_arb_lsq_prf_wb_vld_i 
+                            ) & ~flush ;
+assign lsq_rcu_comm_rob_index_o = (wb_arb_lsq_prf_wb_vld_i) ? lsq_entry_rob_index_vec[prf_wb_entry] : lsq_entry_rob_index_vec[head];
+assign lsq_rcu_comm_is_float_o = (wb_arb_lsq_prf_wb_vld_i) ? lsq_entry_is_float_vec[prf_wb_entry] : 1'b0;
+assign lsq_rcu_comm_func5_o = (wb_arb_lsq_prf_wb_vld_i) ? lsq_entry_func5_vec[prf_wb_entry] : 5'b0;
 assign lsq_rcu_comm_rd_addr_o = wb_arb_lsq_prf_wb_vld_i ? wb_arb_lsq_prf_wb_rd_addr_i : 0;
-assign lsq_rcu_comm_exception_vld_o = (lsq_deque & lsq_entry_no_prf_wb) ? lsq_entry_exception_vld_vec[head] : lsq_entry_exception_vld_vec[prf_wb_entry];
-assign lsq_rcu_comm_ecause_o = (lsq_deque & lsq_entry_no_prf_wb) ? lsq_entry_ecause_vec[head] : lsq_entry_ecause_vec[prf_wb_entry];
+assign lsq_rcu_comm_exception_vld_o = (wb_arb_lsq_prf_wb_vld_i) ? lsq_entry_exception_vld_vec[prf_wb_entry] : lsq_entry_exception_vld_vec[head];
+assign lsq_rcu_comm_ecause_o = (wb_arb_lsq_prf_wb_vld_i) ? lsq_entry_ecause_vec[prf_wb_entry] : lsq_entry_ecause_vec[head];
      
 assign lsq_entry_init_opcode = rcu_lsq_opcode_i;
 assign lsq_entry_init_index = agu_lsq_virt_addr_i[ADDR_INDEX_UPP - 1 : ADDR_INDEX_LOW];
 assign lsq_entry_init_offset = agu_lsq_virt_addr_i[ADDR_OFFSET_UPP - 1 : ADDR_OFFSET_LOW];
 assign lsq_entry_init_vtag = agu_lsq_virt_addr_i[VIRTUAL_ADDR_TAG_UPP - 1 : VIRTUAL_ADDR_TAG_LOW];
 assign lsq_entry_dtlb_virt = ~lsq_entry_ls_vec[issued] | // load 
-                                lsq_entry_ls_vec[issued] & dtlb_lsq_vld_i & ~dtlb_lsq_hit_i; // store and tib is not hit
+                                lsq_entry_ls_vec[issued] & dtlb_lsq_vld_i & ~dtlb_lsq_hit_i | // store and tib is not hit
+                                lsq_entry_ls_vec[issued] & dtlb_lsq_vld_i & dtlb_lsq_exception_vld_i; // store and dtlb exception
 assign lsq_entry_dtlb_tag = ~lsq_entry_dtlb_virt ? dtlb_lsq_ptag_i : 
                                     {{LSQ_ENTRY_TAG_WIDTH - VIRTUAL_ADDR_TAG_LEN{1'b0}}, dtlb_vtag_q};
 
@@ -331,9 +352,9 @@ assign lsq_l1d_iss_hsk_d = lsq_l1d_ld_iss_vld & l1d_lsq_ld_req_rdy_i |
 
 assign final_iss = ~lsq_last_iss_succ ? issued : issue_nxt;
 assign final_iss_bypass = ~lsq_last_iss_succ ? 
-                                iss_issued_entry_bypass : 
-                                iss_nxt_entry_bypass;
-assign iss_issued_entry_bypass = (tail == issued) & lsq_enque;
+                                iss_issued_entry_bypass_vld : 
+                                iss_nxt_entry_bypass_vld;
+assign iss_issued_entry_bypass_vld = (tail == issued) & lsq_enque & ~mc_lsq_exception_vld_i;
 assign iss_issued_entry_bypass_fenced_rdy = (
                                                 (head == issued) & rcu_lsq_fenced_i | 
                                                 ~rcu_lsq_fenced_i
@@ -347,7 +368,7 @@ assign iss_issued_entry_bypass_fenced_rdy = (
                                                 |
                                                 ~lsq_entry_vld_vec[last_issue]
                                             );
-assign iss_nxt_entry_bypass = (tail == issue_nxt) & lsq_enque;
+assign iss_nxt_entry_bypass_vld = (tail == issue_nxt) & lsq_enque & ~mc_lsq_exception_vld_i;
 assign iss_nxt_entry_bypass_fenced_rdy =    (
                                                 (head == issue_nxt) & rcu_lsq_fenced_i | ~rcu_lsq_fenced_i
                                             ) &
@@ -361,9 +382,9 @@ assign iss_nxt_entry_bypass_fenced_rdy =    (
                                                 ~lsq_entry_vld_vec[issued]
                                             );
 assign lsq_issued_entry_rdy =  lsq_entry_vld_vec[issued] & ~lsq_entry_exec_vec[issued] | 
-                                iss_issued_entry_bypass;    
+                                iss_issued_entry_bypass_vld;    
 assign lsq_nxt_entry_rdy =  lsq_entry_vld_vec[issue_nxt] & ~lsq_entry_exec_vec[issue_nxt] | 
-                            iss_nxt_entry_bypass;
+                            iss_nxt_entry_bypass_vld;
 assign req_need_check_awake = lsq_entry_vld_vec[issued] & (
                                 (lsq_entry_opcode_vec[issued] != STU_FENCE) & (lsq_entry_opcode_vec[issued] != STU_SFENCE_VMA) & (lsq_entry_opcode_vec[issued] != STU_FENCE_I ) & lsq_entry_ls_vec[issued] | // st without fence 
                                 pma_lsq_is_io_i & ~lsq_entry_ls_vec[issued] // io ld
@@ -384,33 +405,33 @@ assign lsq_last_iss_succ =  lsq_l1d_iss_vld_q & lsq_l1d_iss_hsk_q &
 
 // issue to tlb
 assign lsq_dtlb_iss_vld_o = (   // forward req
-                                iss_issued_entry_bypass & iss_issued_entry_bypass_fenced_rdy & ~bypass_req_is_fence_req | 
+                                iss_issued_entry_bypass_vld & iss_issued_entry_bypass_fenced_rdy & ~bypass_req_is_fence_req | 
                                 // new req bypass
                                 lsq_last_iss_succ &  
-                                (iss_nxt_entry_bypass ? 
+                                (iss_nxt_entry_bypass_vld ? 
                                     iss_nxt_entry_bypass_fenced_rdy : 
                                     lsq_entry_fenced_rdy_vec[issue_nxt]
                                 ) 
                                 | // in-que loads
-                                ~lsq_entry_ls_vec[issued] & lsq_entry_vld_vec[issued] & ~lsq_entry_exec_vec[issued] 
+                                ~lsq_entry_ls_vec[issued] & lsq_entry_vld_vec[issued] & ~lsq_entry_exec_vec[issued] & ~lsq_entry_exception_vld_vec[issued]
                                 | // normal st
                                 (
                                     lsq_entry_ls_vec[issued] & lsq_entry_vld_vec[issued] & ~lsq_entry_exec_vec[issued] &
-                                    lsq_entry_virt_vec[issued] & ~(dtlb_lsq_hit_i & dtlb_lsq_vld_i) 
+                                    lsq_entry_virt_vec[issued] & ~(dtlb_lsq_hit_i & dtlb_lsq_vld_i) & ~lsq_entry_exception_vld_vec[issued]
                                 ) & ~lsq_entry_is_fence_req_vec[issued]
                                 | // replay
                                 l1d_lsq_ld_replay_vld
                             ) ; // for every st in the que, last tlb req must be sent by itself
 assign lsq_dtlb_iss_vtag_o = l1d_lsq_ld_replay_vld ? lsq_entry_tag_vec[ld_issued_qq][VIRTUAL_ADDR_TAG_LEN - 1 : 0] :
                             ~lsq_last_iss_succ ? 
-                            iss_issued_entry_bypass ? lsq_entry_init_vtag : lsq_iss_vtag :
-                            iss_nxt_entry_bypass ? lsq_entry_init_vtag : lsq_entry_tag_vec[issue_nxt][VIRTUAL_ADDR_TAG_LEN - 1 : 0];
+                            iss_issued_entry_bypass_vld ? lsq_entry_init_vtag : lsq_iss_vtag :
+                            iss_nxt_entry_bypass_vld ? lsq_entry_init_vtag : lsq_entry_tag_vec[issue_nxt][VIRTUAL_ADDR_TAG_LEN - 1 : 0];
 assign lsq_dtlb_iss_type_o = l1d_lsq_ld_replay_vld ? (lsq_entry_ls_vec[ld_issued_qq] ? PMP_ACCESS_TYPE_W : PMP_ACCESS_TYPE_R) :
                             ~lsq_last_iss_succ ? 
-                                iss_issued_entry_bypass ? 
+                                iss_issued_entry_bypass_vld ? 
                                     rcu_lsq_ls_i ? PMP_ACCESS_TYPE_W : PMP_ACCESS_TYPE_R :
                                     lsq_entry_ls_vec[issued] ? PMP_ACCESS_TYPE_W : PMP_ACCESS_TYPE_R :
-                                iss_nxt_entry_bypass ? 
+                                iss_nxt_entry_bypass_vld ? 
                                     rcu_lsq_ls_i ? PMP_ACCESS_TYPE_W : PMP_ACCESS_TYPE_R :
                                     lsq_entry_ls_vec[issue_nxt] ? PMP_ACCESS_TYPE_W : PMP_ACCESS_TYPE_R;
 
@@ -419,15 +440,15 @@ assign lsq_l1d_ld_iss_vld =     l1d_lsq_ld_replay_vld ? 1'b1 :
                                 ~lsq_last_iss_succ ? 
                                 (
                                     ~lsq_entry_ls_vec[issued] & lsq_entry_vld_vec[issued] & 
-                                    ~lsq_entry_exec_vec[issued] &  lsq_entry_fenced_rdy_vec[issued] 
+                                    ~lsq_entry_exec_vec[issued] &  lsq_entry_fenced_rdy_vec[issued] & ~lsq_entry_exception_vld_vec[issued]
                                     | 
-                                    iss_issued_entry_bypass & ~rcu_lsq_ls_i & iss_issued_entry_bypass_fenced_rdy
+                                    iss_issued_entry_bypass_vld & ~rcu_lsq_ls_i & iss_issued_entry_bypass_fenced_rdy
                                 ) :
                                 (
                                     ~lsq_entry_ls_vec[issue_nxt] & lsq_entry_vld_vec[issue_nxt] & 
-                                    lsq_entry_fenced_rdy_vec[issue_nxt] & ~lsq_entry_exec_vec[issue_nxt]
+                                    lsq_entry_fenced_rdy_vec[issue_nxt] & ~lsq_entry_exec_vec[issue_nxt] & ~lsq_entry_exception_vld_vec[issue_nxt]
                                     | 
-                                    iss_nxt_entry_bypass & ~rcu_lsq_ls_i & iss_nxt_entry_bypass_fenced_rdy
+                                    iss_nxt_entry_bypass_vld & ~rcu_lsq_ls_i & iss_nxt_entry_bypass_fenced_rdy
                                 );
 
 assign lsq_l1d_ld_req_vld_o = lsq_l1d_ld_iss_vld & wb_arb_rdy_i;
@@ -437,6 +458,9 @@ assign lsq_l1d_ld_req_rob_index_o = l1d_lsq_ld_replay_vld ? lsq_entry_rob_index_
 assign lsq_l1d_ld_req_rd_addr_o =   l1d_lsq_ld_replay_vld ? lsq_entry_rd_addr_vec[ld_issued_qq] :
                                     final_iss_bypass ? rcu_lsq_rd_addr_i : 
                                                         lsq_entry_rd_addr_vec[final_iss];
+assign lsq_l1d_ld_req_is_float_o = l1d_lsq_ld_replay_vld ? lsq_entry_rob_index_vec[ld_issued_qq] :
+				    final_iss_bypass ? rcu_lsq_is_float_i :
+				    			lsq_entry_is_float_vec[final_iss];
 assign lsq_l1d_ld_req_opcode_o = l1d_lsq_ld_replay_vld ? lsq_entry_opcode_vec[ld_issued_qq][LDU_OP_WIDTH - 1 : 0] :
                                 final_iss_bypass ? rcu_lsq_opcode_i[LDU_OP_WIDTH - 1 : 0] : 
                                                         lsq_entry_opcode_vec[final_iss][LDU_OP_WIDTH - 1 : 0];
@@ -448,26 +472,21 @@ assign lsq_l1d_ld_req_offset_o = l1d_lsq_ld_replay_vld ? lsq_entry_offset_vec[ld
                                                         lsq_entry_offset_vec[final_iss];
 assign lsq_l1d_ld_req_vtag_o =  l1d_lsq_ld_replay_vld ? lsq_entry_tag_vec[ld_issued_qq][VIRTUAL_ADDR_TAG_LEN - 1 : 0] :
                                 ~lsq_last_iss_succ ? 
-                                    iss_issued_entry_bypass ?  lsq_entry_init_vtag : lsq_iss_vtag : 
-                                    iss_nxt_entry_bypass ? lsq_entry_init_vtag : lsq_entry_tag_vec[issue_nxt][VIRTUAL_ADDR_TAG_LEN - 1 : 0];
+                                    iss_issued_entry_bypass_vld ?  lsq_entry_init_vtag : lsq_iss_vtag : 
+                                    iss_nxt_entry_bypass_vld ? lsq_entry_init_vtag : lsq_entry_tag_vec[issue_nxt][VIRTUAL_ADDR_TAG_LEN - 1 : 0];
 
 //issue st uses pa. will know if the st is success immediately. 
 // do not have the case to forward the nxt req.
-assign lsq_l1d_st_iss_vld = lsq_entry_is_fence_req_vec[issued] ?
-                                lsq_entry_vld_vec[issued] & 
-                                (lsq_entry_opcode_vec[issued] == STU_FENCE) & 
-                                lsq_entry_fence_req_rdy_vec[issued] &
-                                ~l1d_lsq_ld_replay_vld &
-                                ~lsq_entry_exec_vec[issued] // fence req
-                            :
-                                ~lsq_last_iss_succ & lsq_entry_vld_vec[issued] & 
+assign lsq_l1d_st_iss_vld =     ~lsq_last_iss_succ & lsq_entry_vld_vec[issued] & 
                                 lsq_entry_ls_vec[issued] & 
-                                ~lsq_entry_virt_vec[issued] & 
+                                lsq_entry_awake_vec[issued] &
+                                (~lsq_entry_virt_vec[issued] | lsq_entry_is_fence_req_vec[issued]) & 
                                 lsq_entry_fenced_rdy_vec[issued] & 
                                 ~l1d_lsq_ld_replay_vld &
+                                ~lsq_entry_exception_vld_vec[issued] & 
                                 ~lsq_entry_exec_vec[issued] // st and amo
                             ;
-assign lsq_l1d_st_req_vld_o = lsq_l1d_st_iss_vld & wb_arb_rdy_i & ~flush;
+assign lsq_l1d_st_req_vld_o = lsq_l1d_st_iss_vld & wb_arb_rdy_i & ~flush & (~lsq_entry_is_fence_req_vec[issued] | (lsq_entry_opcode_vec[issued] == STU_FENCE));
 
 assign lsq_l1d_st_req_is_fence_o = lsq_entry_fenced_vec[issued];
 assign lsq_l1d_st_req_rob_index_o = lsq_entry_rob_index_vec[issued];
@@ -501,7 +520,7 @@ assign lsq_issued_entry_awake = (lsq_entry_awake_vec[issued] & lsq_entry_vld_vec
 
 assign lsq_l1d_replay_kill_o = lsq_l1d_iss_vld_q & l1d_lsq_ld_replay_vld;
 
-assign lsq_bus_ctrl_iss_vld = pma_lsq_is_io_i & lsq_issued_entry_awake & lsq_entry_fenced_rdy_vec[issued] & ~lsq_last_iss_succ;
+assign lsq_bus_ctrl_iss_vld = pma_lsq_is_io_i & lsq_issued_entry_awake & lsq_entry_fenced_rdy_vec[issued] & ~lsq_last_iss_succ & ~lsq_entry_exception_vld_vec[issued];
 assign lsq_bus_ctrl_iss_hsk_d = lsq_bus_ctrl_iss_vld & bus_ctrl_rdy;
 
 assign lsq_pma_dtlb_hit_o = dtlb_lsq_vld_i & dtlb_lsq_hit_i;
@@ -513,6 +532,7 @@ assign lsq_bus_ctrl_req_load_or_store_o =lsq_entry_ls_vec[issued];
 assign lsq_bus_ctrl_req_is_fence_o = lsq_entry_fenced_vec[issued];
 assign lsq_bus_ctrl_req_rob_index_o = lsq_entry_rob_index_vec[issued];
 assign lsq_bus_ctrl_req_rd_addr_o = lsq_entry_rd_addr_vec[issued];
+assign lsq_bus_ctrl_req_is_float_o = lsq_entry_rd_addr_vec[issued];
 assign lsq_bus_ctrl_req_opcode_o = lsq_entry_opcode_vec[issued];
 assign lsq_bus_ctrl_req_paddr_o = {lsq_entry_tag_vec[issued][PHYSICAL_ADDR_TAG_LEN - 1 : 0], lsq_entry_index_vec[issued], lsq_entry_offset_vec[issued]};
 assign lsq_bus_ctrl_req_data_o = lsq_entry_data_vec[issued];
@@ -531,10 +551,10 @@ assign lsq_s1_exception_vld = mc_lsq_exception_vld_i;
 assign lsq_s1_ecause = mc_lsq_exception_vld_i ? mc_lsq_ecause_i : 0;
 
 // fence
-assign bypass_req_is_fence_req = rcu_lsq_vld_i & rcu_lsq_ls_i & (rcu_lsq_opcode_i == STU_FENCE || rcu_lsq_opcode_i == STU_SFENCE_VMA || rcu_lsq_opcode_i == STU_FENCE_I);
+assign bypass_req_is_fence_req = rcu_lsq_vld_i & rcu_lsq_ls_i & ((rcu_lsq_opcode_i == STU_FENCE) || (rcu_lsq_opcode_i == STU_SFENCE_VMA) || (rcu_lsq_opcode_i == STU_FENCE_I));
 assign lsq_rcu_sfence_vma_rdy = ~sfence_vma_asid_vld_q;
 
-assign fence_on_flight_set = lsq_l1d_st_req_vld_o & l1d_lsq_st_req_rdy_i & lsq_entry_is_fence_req_vec[issued];
+assign fence_on_flight_set = lsq_l1d_st_iss_vld & lsq_entry_is_fence_req_vec[issued];
 assign l1d_flush_done_set = fence_on_flight & l1d_lsq_fencei_flush_grant_i;
 assign l1i_flush_done_set = fence_on_flight & l1i_lsq_fencei_flush_grant_i;
 assign dtlb_flush_done_set = fence_on_flight & dtlb_lsq_flush_grant_i;
@@ -550,8 +570,21 @@ assign itlb_flush_done_clr = lsq_deque & lsq_entry_is_fence_req_vec[head];
 
 assign sfence_vma_asid_clr = lsq_deque & lsq_entry_ls_vec[head] & (lsq_entry_opcode_vec[head] == STU_SFENCE_VMA);
 
+wire dtlb_exception_vld = dtlb_lsq_vld_i & dtlb_lsq_exception_vld_i;
+
+assign lsq_exception_set = lsq_rcu_comm_vld_o & lsq_entry_vld_vec[head] & lsq_entry_exception_vld_vec[head] & ~wb_arb_lsq_prf_wb_vld_i;
 always @(posedge clk) begin
-    if(rst | fence_on_flight_clr) begin
+    if(rst | flush) begin
+        lsq_exception_lock <= 0;
+    end
+    else if(lsq_exception_set)begin
+        lsq_exception_lock <= 1;
+    end
+end
+
+
+always @(posedge clk) begin
+    if(rst | fence_on_flight_clr | flush) begin
         fence_on_flight <= 0;
     end
     else if(fence_on_flight_set)begin
@@ -560,7 +593,7 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-    if(rst | l1d_flush_done_clr) begin
+    if(rst | l1d_flush_done_clr | flush) begin
         l1d_flush_done <= 0;
     end
     else if(l1d_flush_done_set)begin
@@ -569,7 +602,7 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-    if(rst | l1i_flush_done_clr) begin
+    if(rst | l1i_flush_done_clr | flush) begin
         l1i_flush_done <= 0;
     end
     else if(l1i_flush_done_set)begin
@@ -578,7 +611,7 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-    if(rst | dtlb_flush_done_clr) begin
+    if(rst | dtlb_flush_done_clr | flush) begin
         dtlb_flush_done <= 0;
     end
     else if(dtlb_flush_done_set)begin
@@ -587,7 +620,7 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-    if(rst | itlb_flush_done_clr) begin
+    if(rst | itlb_flush_done_clr | flush) begin
         itlb_flush_done <= 0;
     end
     else if(itlb_flush_done_set)begin
@@ -596,7 +629,7 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-    if(rst | sfence_vma_asid_clr) begin
+    if(rst | sfence_vma_asid_clr | flush) begin
         sfence_vma_asid_vld_q <= 0;
         sfence_vma_asid_q <= 0;
     end
@@ -617,7 +650,7 @@ always @(*) begin
 end
 
 always @(posedge clk) begin
-    if(rst) begin
+    if(rst | flush) begin
         ld_issued_q <= 0;
         ld_issued_qq <= 0;
         ld_vld_q <= 0;
@@ -638,7 +671,7 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-    if(rst) begin
+    if(rst | flush) begin
         l1d_lsq_ld_replay_vld_q <= 0;
     end
     else begin
@@ -663,6 +696,8 @@ generate
             .lsq_entry_index_i(lsq_entry_init_index),
             .lsq_entry_offset_i(lsq_entry_init_offset),
             .lsq_entry_rd_addr_i(rcu_lsq_rd_addr_i),
+	    .lsq_entry_is_float_i(rcu_lsq_is_float_i),
+	    .lsq_entry_func5_i(rcu_lsq_func5_i),
             .lsq_entry_data_i(rcu_lsq_data_i),
             .lsq_entry_rob_index_i(rcu_lsq_rob_index_i),
             .lsq_entry_exception_vld_i(lsq_s1_exception_vld),
@@ -687,6 +722,8 @@ generate
             .lsq_entry_index_o(lsq_entry_index_vec[i]),
             .lsq_entry_offset_o(lsq_entry_offset_vec[i]),
             .lsq_entry_rob_index_o(lsq_entry_rob_index_vec[i]),
+	    .lsq_entry_is_float_o(lsq_entry_is_float_vec[i]),
+	    .lsq_entry_func5_o(lsq_entry_func5_vec[i]),
             .lsq_entry_virt_o(lsq_entry_virt_vec[i]),
             .lsq_entry_awake_o(lsq_entry_awake_vec[i]),
             .lsq_entry_exec_o(lsq_entry_exec_vec[i]),
@@ -719,12 +756,6 @@ generate
                                         wb_arb_lsq_wb_vld_i[2] & lsq_entry_vld_vec[i] & lsq_entry_no_prf_wb_vec[i] &
                                         (wb_arb_lsq_wb_rob_index[2] == lsq_entry_rob_index_vec[i])
                                         |
-                                        wb_arb_lsq_wb_vld_i[3] & lsq_entry_vld_vec[i] & lsq_entry_no_prf_wb_vec[i] &
-                                        (wb_arb_lsq_wb_rob_index[3] == lsq_entry_rob_index_vec[i])
-                                        |
-                                        wb_arb_lsq_wb_vld_i[4] & lsq_entry_vld_vec[i] & lsq_entry_no_prf_wb_vec[i] &
-                                        (wb_arb_lsq_wb_rob_index[4] == lsq_entry_rob_index_vec[i])
-                                        |
                                         ~lsq_entry_no_prf_wb_vec[i] & lsq_entry_vld_vec[i] & wb_arb_lsq_prf_wb_vld_i &
                                         (wb_arb_lsq_prf_wb_rd_addr_i == lsq_entry_rd_addr_vec[i]);
         assign lsq_entry_succ_vld_vec[i] =  lsq_entry_wb_vld_vec[i] & ~lsq_entry_is_fence_req_vec[i] 
@@ -746,19 +777,19 @@ generate
         assign lsq_entry_exec_vld_vec[i] = lsq_last_iss_succ & (i == issued) & 
                                             (~lsq_entry_is_fence_req_vec[i] | lsq_entry_is_fence_req_vec[i] & (lsq_entry_opcode_vec[i] == STU_FENCE)) 
                                             |
-                                            (i == issued) & lsq_entry_is_fence_req_vec[i] & (lsq_entry_opcode_vec[i] != STU_FENCE);
+                                            (i == issued) & lsq_entry_is_fence_req_vec[i] & (lsq_entry_opcode_vec[i] != STU_FENCE) & lsq_l1d_st_iss_vld;
 
         assign lsq_entry_replay_vld_vec[i] = l1d_lsq_ld_replay_vld & (i == ld_issued_qq);
 
         assign lsq_entry_head_vec[i] = (i == head);
         assign lsq_entry_fenced_rdy_vec[i] = lsq_entry_fenced_barrier[i] & ~lsq_entry_fenced_vec[i] | lsq_entry_fence_req_rdy_vec[i] ;
-        assign lsq_entry_is_fence_req_vec[i] = lsq_entry_ls_vec[i] && (lsq_entry_opcode_vec[i] == STU_FENCE || lsq_entry_opcode_vec[i] == STU_SFENCE_VMA || lsq_entry_opcode_vec[i] == STU_FENCE_I);
-        assign lsq_entry_fence_req_rdy_vec[i] = lsq_entry_fenced_vec[i] & lsq_entry_first_fenced[i] & lsq_entry_fenced_vec[i] & (head == i);
+        assign lsq_entry_is_fence_req_vec[i] = lsq_entry_ls_vec[i] && ((lsq_entry_opcode_vec[i] == STU_FENCE) || (lsq_entry_opcode_vec[i] == STU_SFENCE_VMA) || (lsq_entry_opcode_vec[i] == STU_FENCE_I));
+        assign lsq_entry_fence_req_rdy_vec[i] = lsq_entry_fenced_vec[i] & lsq_entry_first_fenced[i] & (head == i);
         assign lsq_entry_fenced_vec_r[LSQ_ENTRY_NUM - i - 1] = lsq_entry_fenced_vec[i];
         assign lsq_entry_head_vec_r[LSQ_ENTRY_NUM - i - 1] = lsq_entry_head_vec[i];
         assign lsq_entry_vld_vec_r[LSQ_ENTRY_NUM - i - 1] = lsq_entry_vld_vec[i];
         assign lsq_entry_first_fenced[i] = lsq_entry_first_fenced_r[LSQ_ENTRY_NUM - i - 1];
-        assign prf_wb_rd_addr_match[i] = lsq_entry_vld_vec[i] & (lsq_entry_rd_addr_vec[i] == wb_arb_lsq_prf_wb_rd_addr_i);
+        assign prf_wb_rd_addr_match[i] = lsq_entry_vld_vec[i] & (lsq_entry_rd_addr_vec[i] == wb_arb_lsq_prf_wb_rd_addr_i) & (lsq_entry_is_float_vec[i] == wb_arb_lsq_prf_wb_is_float_i);
         assign lsq_entry_no_prf_wb_vec[i] = lsq_entry_vld_vec[i] & lsq_entry_ls_vec[i] &
                             (
                                 lsq_entry_opcode_vec[i] == STU_SB || lsq_entry_opcode_vec[i] == STU_SH ||

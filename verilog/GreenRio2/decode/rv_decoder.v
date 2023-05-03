@@ -1,7 +1,7 @@
 `ifndef RV_DECODER_V
 `define RV_DECODER_V
-`ifdef VERILATOR
-`include "params.vh"
+`ifndef SYNTHESIS
+`include "../params.vh"
 `endif
 
 module rv_decoder (
@@ -22,6 +22,7 @@ module rv_decoder (
 
     output reg uses_rs1_o,
     output reg uses_rs2_o,
+    output reg uses_rs3_o,
     output reg uses_rd_o,
     output reg uses_csr_o,
     output reg [PC_WIDTH-1:0] pc_o,
@@ -29,6 +30,7 @@ module rv_decoder (
     output reg [PC_WIDTH-1:0] predicted_pc_o,
     output reg [VIR_REG_ADDR_WIDTH-1:0] rs1_address_o,
     output reg [VIR_REG_ADDR_WIDTH-1:0] rs2_address_o,
+    output reg [VIR_REG_ADDR_WIDTH-1:0] rs3_address_o,
     output reg [VIR_REG_ADDR_WIDTH-1:0] rd_address_o,
     output reg [CSR_ADDR_LEN-1:0] csr_address_o,
     output reg mret_o,
@@ -47,8 +49,13 @@ module rv_decoder (
     output reg [31:0] imm_data_o,
     output reg [2:0] fu_function_o,
     output reg alu_function_modifier_o,
+    output reg is_single_float_instruction_o,
+    output reg [4:0] falu_function_o,
+    output reg [2:0] float_rounding_mode_o,
+    output reg [1:0] float_fmt_o,
     output reg [1:0] fu_select_a_o,
     output reg [1:0] fu_select_b_o,
+    output reg [1:0] fu_select_c_o,
     output reg jump_o,
     output reg branch_o,
     output reg is_alu_o,
@@ -63,34 +70,53 @@ module rv_decoder (
 wire [31:0] instr = rv_inst_i;
 wire [4:0] rs1_address = instr[19:15];
 wire [4:0] rs2_address = instr[24:20];
+wire [4:0] rs3_address = instr[31:27];
 wire [4:0] rd_address  = instr[11:7];
 
 reg uses_rs1_w;
 reg uses_rs2_w;
+reg uses_rs3_w;
 reg uses_csr_w;
+
+/*----- float instruction indicator -----*/
+wire is_float_instruction;
+reg [4:0] single_float_instruction_number;
+rv_fdecoder fdecoder(
+	.instruction_i(instr),
+	.is_float_instruction_o(is_float_instruction),
+	.single_float_instruction_number_o(single_float_instruction_number),
+	.roundingMode(float_rounding_mode_o),
+	.float_format(float_fmt_o)
+);
+/*---------------------------------------*/
 
 always @(*) begin
   case (instr[6:0])
     7'b1100111,  // JALR
     7'b0000011,  // LOAD
     7'b0010011,  // OP-IMM
-    7'b0011011:  // OP-IMM half
+    7'b0011011,  // OP-IMM half
+    7'b0000111:  // FLOAD
       begin
       uses_rs1_w = 1;
       uses_rs2_w = 0;
+      uses_rs3_w = 0;
       uses_csr_w = 0;
     end
     7'b1100011,  // Branch
     7'b0100011,  // STORE
     7'b0110011,  // OP
-    7'b0111011:  // OP half
+    7'b0111011,  // OP half
+    7'b0100111:  // FSTORE
       begin
       uses_rs1_w = 1;
       uses_rs2_w = 1;
+      uses_rs3_w = 0;
       uses_csr_w = 0;
     end
     7'b1110011: begin  // SYSTEM
       uses_rs2_w = 0;
+      uses_rs3_w = 0;
       case (instr[14:12])
         3'b001: begin  // CSRRW
           uses_rs1_w = 1;
@@ -120,6 +146,7 @@ always @(*) begin
     end
     7'b0101111: begin  // RV32A, RV64A
       uses_rs1_w = 1;
+      uses_rs3_w = 0;
       uses_csr_w = 0;
       case (instr[31:27])
         5'b00010: begin  // lr.w, lr.d
@@ -130,20 +157,140 @@ always @(*) begin
         end
       endcase
     end
+    7'b1010011: begin // float
+    	case(single_float_instruction_number)
+		FALU_FADDS,
+		FALU_FSUBS,
+		FALU_FMULS,
+		FDIVSQRT_DIVS,
+		FALU_FSGNJS,
+		FALU_FSGNJNS,
+		FALU_FSGNJXS,
+		FALU_FMINS,
+		FALU_FMAXS,
+		FALU_FEQS,
+		FALU_FLTS,
+		FALU_FLES:
+		begin
+			uses_rs1_w = 1;
+			uses_rs2_w = 1;
+			uses_rs3_w = 0;
+			uses_csr_w = 0;
+		end
+		FDIVSQRT_FSQRTS,
+		FALU_FCVTWS,
+		FALU_FCVTWUS,
+		FALU_FMVXW,
+		FALU_FCLASS_S,
+		FALU_FCVTSW,
+		FALU_FCVTSWU,
+		FALU_FMVWX,
+		FALU_FCVTLS,
+		FALU_FCVTLUS,
+		FALU_FCVTSL,
+		FALU_FCVTSD,
+		FALU_FCVTDS,
+		FALU_FCVTSLU:
+		begin
+			uses_rs1_w = 1;
+			uses_rs2_w = 0;
+			uses_rs3_w = 0;
+			uses_csr_w = 0;
+		end
+		default: begin
+			uses_rs1_w = 0;
+			uses_rs2_w = 0;
+			uses_rs3_w = 0;
+			uses_csr_w = 0;
+		end
+	endcase
+    end
+    7'b1000011, //FMADDS
+    7'b1000111, //FMSUBS
+    7'b1001011, //FNMSUBS
+    7'b1001111: // FNMADDS 
+    begin
+    	uses_rs1_w = 1;
+	uses_rs2_w = 1;
+	uses_rs3_w = 1;
+	uses_csr_w = 0;
+    end
     default: begin
       uses_rs1_w = 0;
       uses_rs2_w = 0;
+      uses_rs3_w = 0;
       uses_csr_w = 0;
     end
+	
   endcase
 end
 
 always @(*) begin
     uses_rs1_o = uses_rs1_w; 
     uses_rs2_o = uses_rs2_w;
+    uses_rs3_o = uses_rs3_w;
     uses_csr_o = uses_csr_w;
-    rs1_address_o = rs1_address;
-    rs2_address_o = rs2_address;
+end
+
+/* FPU */
+always @(*) begin
+	if (is_float_instruction) begin
+		case(single_float_instruction_number)
+			FALU_FADDS,
+			FALU_FSUBS,
+			FALU_FMULS,
+			FALU_FMINS,
+			FALU_FMAXS,
+			FALU_FMADDS,
+			FALU_FNMADDS,
+			FALU_FMSUBS,
+			FALU_FNMSUBS,
+			FALU_FCVTWS,
+			FALU_FCVTWUS,
+			FALU_FCVTLS,
+			FALU_FCVTLUS,
+			FALU_FSGNJS,
+			FALU_FSGNJNS,
+			FALU_FSGNJXS,
+			FALU_FEQS,
+			FALU_FLTS,
+			FALU_FLES,
+			FALU_FCLASS_S,
+			FALU_FMVXW,
+			FALU_FCVTSD,
+			FALU_FCVTDS,
+			FDIVSQRT_DIVS,
+			FDIVSQRT_FSQRTS:
+			begin
+				rs1_address_o = { 1'b1, rs1_address };
+				rs2_address_o = { 1'b1, rs2_address };
+				rs3_address_o = { 1'b1, rs3_address };
+			end
+			FALU_FCVTSW,
+			FALU_FCVTSWU,
+			FALU_FCVTSL,
+			FALU_FCVTSLU,
+			FALU_FMVWX,
+			FLW,
+			FSW:
+			begin
+				rs1_address_o = { 1'b0, rs1_address };
+				rs2_address_o = { 1'b1, rs2_address };
+				rs3_address_o = { 1'b1, rs3_address };
+			end
+			default: begin
+				rs1_address_o = { 1'b1, rs1_address };
+				rs2_address_o = { 1'b1, rs2_address };
+				rs3_address_o = { 1'b1, rs3_address };
+			end
+				
+		endcase
+	end
+	else begin
+		rs1_address_o = { 1'b0, rs1_address };
+		rs2_address_o = { 1'b0, rs2_address };
+		rs3_address_o = { 1'b0, rs3_address };
+	end
 end
 
 // possible immediate values
@@ -161,9 +308,11 @@ reg [PC_WIDTH-1:0] predicted_pc_w;
 reg [31:0] imm_data_w;
 reg [11:0] csr_address_w;
 reg [2:0] fu_function_w;
+reg [4:0] falu_function_w;
 reg alu_function_modifier_w;
 reg [1:0] fu_select_a_w;
 reg [1:0] fu_select_b_w;
+reg [1:0] fu_select_c_w;
 reg jump_w;
 reg branch_w;
 reg is_alu_w;
@@ -172,7 +321,7 @@ reg store_w;
 reg [LDU_OP_WIDTH-1:0] ldu_op_w;
 reg [STU_OP_WIDTH-1:0] stu_op_w;
 reg uses_rd_w;
-reg [4:0] rd_address_w;
+reg [5:0] rd_address_w;
 reg csr_read_w;
 reg csr_write_w;
 reg mret_w;
@@ -195,9 +344,11 @@ always @(*) begin
   imm_data_w = 0;
   csr_address_w = instr[31:20];
   fu_function_w = ALU_OR;
+  falu_function_w = FALU_FADDS;
   alu_function_modifier_w = 0;
   fu_select_a_w = ALU_SEL_IMM;
   fu_select_b_w = ALU_SEL_IMM;
+  fu_select_c_w = ALU_SEL_IMM;
   jump_w = 0;
   branch_w = 0;
   is_alu_w = 1;
@@ -225,14 +376,14 @@ always @(*) begin
     7'b0110111: begin  // LUI
       uses_rd_w = 1;
       imm_data_w = u_type_imm_data;
-      rd_address_w = rd_address;
+      rd_address_w = { 1'b0, rd_address };
     end
     7'b0010111: begin  // AUIPC
       uses_rd_w = 1;
       fu_function_w = ALU_ADD_SUB;
       fu_select_a_w = ALU_SEL_PC;
       imm_data_w = u_type_imm_data;
-      rd_address_w = rd_address;
+      rd_address_w = { 1'b0, rd_address };
     end
     7'b1101111: begin  // JAL
       uses_rd_w = 1;
@@ -241,7 +392,7 @@ always @(*) begin
       imm_data_w = j_type_imm_data;
       branch_w = 1;
       jump_w = 1;
-      rd_address_w = rd_address;
+      rd_address_w = { 1'b0, rd_address };
     end
     7'b1100111: begin  // JALR
       uses_rd_w = 1;
@@ -250,7 +401,7 @@ always @(*) begin
       imm_data_w = i_type_imm_data;
       branch_w = 1;
       jump_w = 1;
-      rd_address_w = rd_address;
+      rd_address_w = { 1'b0, rd_address };
       if (instr[14:12] != 0) begin
         ecause_w = EXCEPTION_ILLEGAL_INSTRUCTION;
         exception_w = 1;
@@ -266,25 +417,29 @@ always @(*) begin
         exception_w = 1;
       end
     end
-    7'b0000011: begin  // LOAD
+    7'b0000011,
+    7'b0000111: begin  // LOAD/FLOAD
       uses_rd_w = 1;
       fu_select_a_w = ALU_SEL_REG;
       imm_data_w = i_type_imm_data;
       is_alu_w = 0;  // because of AGU
       load_w = 1;
-      ldu_op_w = {2'b00, instr[14:12]};
-      rd_address_w = rd_address;
+      ldu_op_w = {1'b0, instr[14:12]};
+      rd_address_w = is_float_instruction ? { 1'b1, rd_address } : { 1'b0, rd_address };
+      falu_function_w = single_float_instruction_number;
       if ((instr[14:12] == 3'b111)) begin
         ecause_w = EXCEPTION_ILLEGAL_INSTRUCTION;
         exception_w = 1;
       end
     end
-    7'b0100011: begin  // STORE
+    7'b0100011,
+    7'b0100111: begin  // STORE/FSTORE
       fu_select_a_w = ALU_SEL_REG;
       imm_data_w = s_type_imm_data;
       is_alu_w = 0;  // because of AGU
       store_w = 1;
-      stu_op_w = {2'b00, instr[14:12]};
+      stu_op_w = {1'b0, instr[14:12]};
+      falu_function_w = single_float_instruction_number;
       if (instr[14]) begin
         ecause_w = EXCEPTION_ILLEGAL_INSTRUCTION;
         exception_w = 1;
@@ -296,7 +451,7 @@ always @(*) begin
       alu_function_modifier_w = (instr[14:12] == 3'b101 && instr[30]);
       fu_select_a_w = ALU_SEL_REG;
       imm_data_w = i_type_imm_data;
-      rd_address_w = rd_address;
+      rd_address_w = { 1'b0, rd_address };
       if ((instr[14:12] == 3'b001 && instr[31:26] != 0)  // slli 
           || (instr[14:12] == 3'b101 && (instr[31] != 0 || instr[29:26] != 0))  // srai & srli 
           ) begin
@@ -310,7 +465,7 @@ always @(*) begin
       alu_function_modifier_w = (instr[14:12] == 3'b101 && instr[30]);
       fu_select_a_w = ALU_SEL_REG;
       imm_data_w = i_type_imm_data;
-      rd_address_w = rd_address;
+      rd_address_w = { 1'b0, rd_address };
       half_w = 1;
       if (
             (instr[14:12] == 3'b001 && instr[31:25] != 0)
@@ -325,7 +480,7 @@ always @(*) begin
       fu_function_w = instr[14:12];
       fu_select_a_w = ALU_SEL_REG;
       fu_select_b_w = ALU_SEL_REG;
-      rd_address_w = rd_address;
+      rd_address_w = { 1'b0, rd_address };
       if (instr[31:25] == 7'b0000001) begin  // RV64M
         is_alu_w = 0;
         is_mext_w = 1;
@@ -342,7 +497,7 @@ always @(*) begin
       fu_function_w = instr[14:12];
       fu_select_a_w = ALU_SEL_REG;
       fu_select_b_w = ALU_SEL_REG;
-      rd_address_w = rd_address;
+      rd_address_w = { 1'b0, rd_address };
       half_w = 1;
       if (instr[31:25] == 7'b0000001) begin  // RV64M
         is_alu_w = 0;
@@ -364,7 +519,7 @@ always @(*) begin
     end
     7'b0101111: begin  // RV32A, RV64A
       uses_rd_w = 1;
-      rd_address_w = rd_address;
+      rd_address_w = { 1'b0, rd_address };
       is_alu_w = 0;
       is_aext_w = 1;
       aq_w = instr[26];
@@ -554,7 +709,7 @@ always @(*) begin
         case (instr[14:12])
           3'b001: begin  // CSRRW
             uses_rd_w = 1;
-            rd_address_w = rd_address;
+            rd_address_w = { 1'b0, rd_address };
             fu_function_w = instr[14:12];
             fu_select_a_w = ALU_SEL_REG;
             csr_read_w = (rd_address != 0);
@@ -566,7 +721,7 @@ always @(*) begin
           end
           3'b010: begin  // CSRRS
             uses_rd_w = 1;
-            rd_address_w = rd_address;
+            rd_address_w = { 1'b0, rd_address };
             fu_function_w = instr[14:12];
             fu_select_a_w = ALU_SEL_REG;
             fu_select_b_w = ALU_SEL_CSR;
@@ -579,7 +734,7 @@ always @(*) begin
           end
           3'b011: begin  // CSRRC
             uses_rd_w = 1;
-            rd_address_w = rd_address;
+            rd_address_w = { 1'b0, rd_address };
             fu_function_w = instr[14:12];
             fu_select_a_w = ALU_SEL_REG;
             fu_select_b_w = ALU_SEL_CSR;
@@ -592,7 +747,7 @@ always @(*) begin
           end
           3'b101: begin  // CSRRWI
             uses_rd_w = 1;
-            rd_address_w = rd_address;
+            rd_address_w = { 1'b0, rd_address };
             fu_function_w = instr[14:12];
             imm_data_w = csr_type_imm_data;
             csr_read_w = (rd_address != 0);
@@ -604,7 +759,7 @@ always @(*) begin
           end
           3'b110: begin  // CSRRSI
             uses_rd_w = 1;
-            rd_address_w = rd_address;
+            rd_address_w = { 1'b0, rd_address };
             fu_function_w = instr[14:12];
             fu_select_b_w = ALU_SEL_CSR;
             imm_data_w = csr_type_imm_data;
@@ -617,7 +772,7 @@ always @(*) begin
           end
           3'b111: begin  // CSRRCI
             uses_rd_w = 1;
-            rd_address_w = rd_address;
+            rd_address_w = { 1'b0, rd_address };
             fu_function_w = instr[14:12];
             fu_select_b_w = ALU_SEL_CSR;
             imm_data_w = csr_type_imm_data;
@@ -636,6 +791,83 @@ always @(*) begin
         endcase        
       end
     end
+    7'b1010011: begin
+	    is_alu_w = 0;
+	    uses_rd_w = 1;
+	    fu_select_a_w = ALU_SEL_REG;
+	    falu_function_w = single_float_instruction_number;
+
+	    case(single_float_instruction_number)
+	    	FALU_FADDS,
+		FALU_FSUBS,
+		FALU_FMULS,
+		FALU_FMINS,
+		FALU_FMAXS,
+		FALU_FCVTSW,
+		FALU_FCVTSWU,
+		FALU_FCVTSL,
+		FALU_FCVTSLU,
+		FALU_FSGNJS,
+		FALU_FSGNJNS,
+		FALU_FSGNJXS,
+		FALU_FMVWX,
+		FDIVSQRT_DIVS,
+		FDIVSQRT_FSQRTS,
+		FALU_FCVTSD,
+		FALU_FCVTDS,
+		FLW:
+		begin
+			rd_address_w = { 1'b1, rd_address };
+		end
+		FALU_FCVTWS,
+		FALU_FCVTWUS,
+		FALU_FCVTLS,
+		FALU_FCVTLUS,
+		FALU_FEQS,
+		FALU_FLTS,
+		FALU_FLES,
+		FALU_FCLASS_S,
+		FALU_FMVXW:
+		begin
+			rd_address_w = { 1'b0, rd_address };		
+		end
+	    endcase
+	    
+	    case(single_float_instruction_number)
+	    	FALU_FADDS,
+		FALU_FSUBS,
+		FALU_FMULS,
+		FDIVSQRT_DIVS,
+		FALU_FSGNJS,
+		FALU_FSGNJNS,
+		FALU_FSGNJXS,
+		FALU_FMINS,
+		FALU_FMAXS,
+		FALU_FEQS,
+		FALU_FLTS,
+		FALU_FLES:
+		begin
+			fu_select_b_w = ALU_SEL_REG;		
+		end
+		default: begin
+			fu_select_b_w = ALU_SEL_IMM;
+		end
+	    endcase
+    end
+    7'b1000011,// FMADD.S
+    7'b1000111, // FMSUB.S
+    7'b1001011,// FNMSUB.S
+    7'b1001111: // FNMADD.S 
+    begin
+	    is_alu_w = 0;
+	    uses_rd_w = 1;
+	    rd_address_w = is_float_instruction ? { 1'b1, rd_address } : { 1'b0, rd_address };
+	    fu_select_a_w = ALU_SEL_REG;
+	    fu_select_b_w = ALU_SEL_REG;
+	    fu_select_c_w = ALU_SEL_REG;
+	    falu_function_w = single_float_instruction_number;
+
+    end
     default: begin
       is_alu_w = 0;
       ecause_w = EXCEPTION_ILLEGAL_INSTRUCTION;
@@ -651,9 +883,12 @@ always @(*) begin
     imm_data_o = imm_data_w;
     csr_address_o = csr_address_w;
     fu_function_o = fu_function_w;
+    falu_function_o = falu_function_w;
+    is_single_float_instruction_o = is_float_instruction;
     alu_function_modifier_o = alu_function_modifier_w;
     fu_select_a_o = fu_select_a_w;
     fu_select_b_o = fu_select_b_w;
+    fu_select_c_o = fu_select_c_w;
     jump_o = jump_w;
     branch_o = branch_w;
     is_alu_o = is_alu_w;

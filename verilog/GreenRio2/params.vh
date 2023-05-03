@@ -11,31 +11,6 @@
 // `include "src_new/hehe_cfg.vh"
 // `endif // SYNTHESIS
 
-`define va_vpn0 20:12
-`define va_vpn1 29:21
-`define va_vpn2 38:30
-
-`define pa_ppn0 20:12
-`define pa_ppn1 29:21
-`define pa_ppn2 55:30
-
-`define pte_n 63:63
-`define pte_pbmt 62:61
-`define pte_ppn  53:10
-`define pte_ppn2 53:28
-`define pte_ppn1 27:19
-`define pte_ppn0 18:10
-`define pte_rsw 9:8
-`define pte_d 7:7
-`define pte_a 6:6
-`define pte_g 5:5
-`define pte_u 4:4
-`define pte_x 3:3
-`define pte_w 2:2
-`define pte_r 1:1
-`define pte_v 0:0
-`define pte_xwr 3:1
-
 `define sstatus_mxr 19:19
 `define sstatus_sum 18:18
 `define LSU_V1
@@ -43,30 +18,34 @@
 // global params 
 /*verilator lint_off UNUSED */
 parameter XLEN = 64;  
-
+parameter FLEN = 64;
 
 
 parameter VIRTUAL_ADDR_LEN = 39;
 parameter PHYSICAL_ADDR_LEN = 56;
 
-parameter L1D_INDEX_WIDTH  = 6; // LOG(L1D_BANK_SET_NUM*L1D_BANK_ID_NUM)
+
+parameter L1D_INDEX_WIDTH  = 1; // LOG(L1D_BANK_SET_NUM*L1D_BANK_ID_NUM)
 parameter L1D_OFFSET_WIDTH = 6; // LOG(L1D_BANK_LINE_DATA_SIZE/8)
 parameter L1D_BIT_OFFSET_WIDTH = 9; //$clog2(L1D_BANK_LINE_DATA_SIZE)
 parameter L1D_TAG_WIDTH = PHYSICAL_ADDR_LEN - L1D_INDEX_WIDTH - L1D_OFFSET_WIDTH;
 
-parameter ADDR_OFFSET_LEN = L1D_OFFSET_WIDTH; // CACHE_LINE
+parameter ADDR_OFFSET_LEN = 6; // CACHE_LINE
 parameter ADDR_OFFSET_LOW = 0;
 parameter ADDR_OFFSET_UPP = ADDR_OFFSET_LOW + ADDR_OFFSET_LEN;
 
-parameter ADDR_INDEX_LEN = L1D_INDEX_WIDTH;
+parameter ADDR_INDEX_LEN = 6;
 parameter ADDR_INDEX_LOW = ADDR_OFFSET_UPP;
 parameter ADDR_INDEX_UPP = ADDR_INDEX_LOW + ADDR_INDEX_LEN;
 
-parameter PHYSICAL_ADDR_TAG_LEN = PHYSICAL_ADDR_LEN - ADDR_INDEX_LEN - ADDR_OFFSET_LEN;
+parameter PPN_WIDTH = PHYSICAL_ADDR_LEN - ADDR_INDEX_LEN - ADDR_OFFSET_LEN;
+parameter VPN_WIDTH = VIRTUAL_ADDR_LEN - ADDR_INDEX_LEN - ADDR_OFFSET_LEN;
+
+parameter PHYSICAL_ADDR_TAG_LEN = PPN_WIDTH;
 parameter PHYSICAL_ADDR_TAG_LOW = ADDR_INDEX_UPP;
 parameter PHYSICAL_ADDR_TAG_UPP = PHYSICAL_ADDR_LEN;
 
-parameter VIRTUAL_ADDR_TAG_LEN = VIRTUAL_ADDR_LEN - ADDR_INDEX_LEN - ADDR_OFFSET_LEN;
+parameter VIRTUAL_ADDR_TAG_LEN = VPN_WIDTH;
 parameter VIRTUAL_ADDR_TAG_LOW = ADDR_INDEX_UPP;
 parameter VIRTUAL_ADDR_TAG_UPP = VIRTUAL_ADDR_LEN;
 
@@ -86,7 +65,7 @@ parameter RESET_VECTOR = 39'h8000_0000;
 
 parameter EXCEPTION_CAUSE_WIDTH = 5;
 // parameter PHY_REG_ADDR_WIDTH = 6;
-parameter VIR_REG_ADDR_WIDTH = 5;
+parameter VIR_REG_ADDR_WIDTH = 6;
 parameter PC_WIDTH = VIRTUAL_ADDR_LEN;
 parameter CSR_ADDR_LEN = 12;
 
@@ -129,12 +108,12 @@ parameter FETCH_WIDTH = 128                                             ;
 parameter L1I_OFFSET_WIDTH = 4                                          ;
 parameter MODE_WIDTH = 4                                                ;
 parameter ASID_WIDTH = 16                                               ;
-parameter PPN_WIDTH = 44                                                ;
+// parameter PPN_WIDTH = 44                                                ;
 parameter L1I_INDEX_WIDTH = 8 + L1I_OFFSET_WIDTH                        ;
 parameter L1I_TAG_WIDTH = PC_WIDTH - L1I_INDEX_WIDTH ; 
 parameter TRANS_ID_WIDTH = 3                                            ;
 parameter PTE_WIDTH = 64                                                ;
-parameter VPN_WIDTH = 27                                                ;
+// parameter VPN_WIDTH = 27                                                ;
 parameter PAGE_LVL_WIDTH = $clog2(VPN_WIDTH/9)                          ;
 parameter PMPCFG_ENTRY_COUNT = PMP_ENTRY_COUNT / 8                      ;
 
@@ -145,20 +124,23 @@ parameter NUM_ELEMENTS = INS_BUFFER_SIZE * INS_BUFFER_DATA / SIZE_ELEMENT  ;
 parameter PTR_WIDTH = $clog2(NUM_ELEMENTS)                                 ;
 parameter NUM_ELEMENTS_PER_LINE = NUM_ELEMENTS / INS_BUFFER_SIZE           ;
 // RCU
-parameter ROB_SIZE = 4;
-parameter ROB_SIZE_WIDTH = 2;
+parameter ROB_SIZE = 16;
+parameter ROB_SIZE_WIDTH = 4;
 parameter ROB_INDEX_WIDTH = ROB_SIZE_WIDTH;
-parameter PHY_REG_SIZE = 36;
+parameter PHY_REG_SIZE = 48;
 parameter PHY_REG_ADDR_WIDTH = 6; 
 parameter FRLIST_DATA_WIDTH = 6;
-parameter FRLIST_DEPTH = PHY_REG_SIZE - 1; //p0 is not in the fifo FRLIST_DEPTH = PHY_REG_SIZE - 1
+parameter FRLIST_DEPTH = PHY_REG_SIZE / 2 - 1; //p0 is not in the fifo FRLIST_DEPTH = PHY_REG_SIZE - 1
 parameter FRLIST_DEPTH_WIDTH = 6; //combine with physical register later
 
-parameter MD_QUEUE_DEPTH = 2;
-parameter MD_QUEUE_DEPTH_WIDTH = 1;
+parameter MD_QUEUE_DEPTH = 4;
+parameter MD_QUEUE_DEPTH_WIDTH = 2;
 
-parameter LSU_QUEUE_DEPTH = 2;
-parameter LSU_QUEUE_DEPTH_WIDTH = 1;
+parameter FDIVSQRT_QUEUE_DEPTH = 4;
+parameter FDIVSQRT_QUEUE_DEPTH_WIDTH = 2;
+
+parameter LSU_QUEUE_DEPTH = 4;
+parameter LSU_QUEUE_DEPTH_WIDTH = 2;
 
 
 // exception code
@@ -209,6 +191,43 @@ parameter MUL_OP_MULH     =   3'd1;
 parameter MUL_OP_MULHSU   =   3'd2;
 parameter MUL_OP_MULHU    =   3'd3;
 
+// Single Float Operation Type for FALU
+parameter FALU_FADDS = 5'd0;
+parameter FALU_FSUBS = 5'd1;
+parameter FALU_FMULS = 5'd2;
+parameter FALU_FMINS = 5'd3;
+parameter FALU_FMAXS = 5'd4;
+parameter FALU_FMADDS = 5'd5;
+parameter FALU_FNMADDS = 5'd6;
+parameter FALU_FMSUBS = 5'd7;
+parameter FALU_FNMSUBS = 5'd8;
+parameter FALU_FCVTWS = 5'd9;
+parameter FALU_FCVTWUS = 5'd10;
+parameter FALU_FCVTLS = 5'd11;
+parameter FALU_FCVTLUS = 5'd12;
+parameter FALU_FCVTSW = 5'd13;
+parameter FALU_FCVTSWU = 5'd14;
+parameter FALU_FCVTSL = 5'd15;
+parameter FALU_FCVTSLU = 5'd16;
+parameter FALU_FSGNJS = 5'd17;
+parameter FALU_FSGNJNS = 5'd18;
+parameter FALU_FSGNJXS = 5'd19;
+parameter FALU_FEQS = 5'd20;
+parameter FALU_FLTS = 5'd21;
+parameter FALU_FLES = 5'd22;
+parameter FALU_FCLASS_S = 5'd23;
+parameter FALU_FMVWX = 5'd24;
+parameter FALU_FMVXW = 5'd25;
+parameter FALU_FCVTSD = 5'd30;
+parameter FALU_FCVTDS = 5'd31;
+
+// Operation Type for FDIVSQRT
+parameter FDIVSQRT_DIVS = 5'd26;
+parameter FDIVSQRT_FSQRTS = 5'd27;
+
+parameter FLW = 5'd28;
+parameter FSW = 5'd29;
+
 parameter XLEN_M_IMMLEN = XLEN - IMM_LEN;
 parameter XLEN_M_PCWIDTH = XLEN - PC_WIDTH;
 
@@ -227,6 +246,7 @@ parameter DTLB_TRANS_ID_WIDTH = 3;
     
 parameter ITLB_TRANSLATE_WIDTH = 1;
 parameter ITLB_ENTRY_COUNT = 32;
+parameter ITLB_MSHR_COUNT = 1;
 parameter ITLB_TRANS_ID_WIDTH = 3;
 
 parameter PMP_ACCESS_TYPE_WIDTH  = 1;
@@ -315,8 +335,8 @@ parameter IO_ADDR_LOW = 56'h1004;
     parameter LSQ_DEPTH_WIDTH = 3;
 
 
-    parameter LSU_ADDR_PIPE_COUNT = 2;
-    parameter LSU_DATA_PIPE_COUNT = 2;    
+    parameter LSU_ADDR_PIPE_COUNT = 1;
+    parameter LSU_DATA_PIPE_COUNT = 1;    
 
     parameter LSQ_ENTRY_VLD_WIDTH = 1;
     parameter LSQ_ENTRY_VLD_WIDTH_LOW = 0;
@@ -384,20 +404,27 @@ parameter IO_ADDR_LOW = 56'h1004;
 parameter UNITS_NUM = 5;
 parameter UNITS_NUM_WIDTH = 3;
 
+// FPU
+parameter EXPWIDTH = 8;
+parameter SIGWIDTH = 24;
+
 // Decode
 // fence function code in decoder
 parameter DEC_FENCE = 0;
 parameter DEC_FENCE_I = 1;
 parameter DEC_SFENCE_VMA = 2;
 // decode fifo
-parameter DEC_FIFO_DATA_WIDTH = 1 * 4 + PC_WIDTH * 3 + 5 * 3 + 12 + 1 * 3 + EXCEPTION_CAUSE_WIDTH + 1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 32 + 3 + 1 + 2 * 2 + 1 + 1 + 1 + 1 + 1 + LDU_OP_WIDTH + STU_OP_WIDTH + 1 + 1;
+parameter DEC_FIFO_DATA_WIDTH = 1 * 5 + PC_WIDTH * 3 + 6 * 4 + 12 + 1 * 4 + EXCEPTION_CAUSE_WIDTH + 1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 32 + 3 + 5 + 3 + 2 + 1 + 2 * 3 + 1 + 1 + 1 + 1 + 1 + LDU_OP_WIDTH + STU_OP_WIDTH + 1 + 1 + 1 + 1;
 parameter DEC_FIFO_SIZE = 8;
 parameter DEC_FIFO_SIZE_WIDTH = 3;
 
 
 //RCU
 parameter MD_DATA_WIDTH = ROB_INDEX_WIDTH + PHY_REG_ADDR_WIDTH + XLEN + XLEN + 3 + 1;
-parameter LSU_DATA_WIDTH = ROB_INDEX_WIDTH + PHY_REG_ADDR_WIDTH + XLEN + XLEN + IMM_LEN + 1 + 1 + LDU_OP_WIDTH + STU_OP_WIDTH + 1 + 2 + 1 + 1 + 1;
+parameter FDIVSQRT_DATA_WIDTH = ROB_INDEX_WIDTH + PHY_REG_ADDR_WIDTH + XLEN + XLEN + 5 + 3 + 2;
+parameter LSU_DATA_WIDTH = ROB_INDEX_WIDTH + PHY_REG_ADDR_WIDTH + XLEN + XLEN + IMM_LEN + 1 + 1 + 1 + 5 + LDU_OP_WIDTH + STU_OP_WIDTH + 1 + 2 + 1 + 1 + 1;
+
+
 
 /*verilator lint_off UNUSED */
 `endif // PARAMS_VH

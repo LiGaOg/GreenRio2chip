@@ -1,7 +1,7 @@
 `ifndef _LSU_BUS_CTRL_
 `define _LSU_BUS_CTRL_
-`ifdef VERILATOR
-`include "params.vh"
+`ifndef VCS
+`include "../params.vh"
 `endif
 // TODO: do not support io amo operation
 module lsu_bus_ctrl(
@@ -13,6 +13,7 @@ module lsu_bus_ctrl(
     input                                           lsq_bus_ctrl_req_is_fence_i,
     input   [     ROB_INDEX_WIDTH - 1 : 0]          lsq_bus_ctrl_req_rob_index_i,
     input   [    PHY_REG_ADDR_WIDTH - 1 : 0]        lsq_bus_ctrl_req_rd_addr_i,
+    input 					    lsq_bus_ctrl_req_is_float_i,
     input   [      STU_OP_WIDTH - 1 : 0]            lsq_bus_ctrl_req_opcode_i,
     input   [       PHYSICAL_ADDR_LEN - 1 : 0]      lsq_bus_ctrl_req_paddr_i, 
     input   [              XLEN - 1 : 0]            lsq_bus_ctrl_req_data_i,
@@ -30,6 +31,7 @@ module lsu_bus_ctrl(
     output [ROB_INDEX_WIDTH - 1 : 0]                bus_ctrl_wb_arb_wb_rob_index_o,
     output                                          bus_ctrl_wb_arb_prf_wb_vld_o,
     output [PHY_REG_ADDR_WIDTH - 1 : 0]             bus_ctrl_wb_arb_prf_wb_rd_addr_o,
+    output				  	    bus_ctrl_wb_arb_prf_wb_is_float_o,
     output [XLEN - 1 : 0]                           bus_ctrl_wb_arb_prf_wb_data_o,
     input                                           wb_arb_bus_ctrl_rdy_i
 );
@@ -43,6 +45,7 @@ reg                                                 bus_ctrl_req_load_or_store_q
 reg                                                 bus_ctrl_req_is_fence_q;
 reg   [     ROB_INDEX_WIDTH - 1 : 0]                bus_ctrl_req_rob_index_q;
 reg   [    PHY_REG_ADDR_WIDTH - 1 : 0]              bus_ctrl_req_rd_addr_q;
+reg 						    bus_ctrl_req_is_float_q;
 reg   [      STU_OP_WIDTH - 1 : 0]                  bus_ctrl_req_opcode_q;
 reg   [       PHYSICAL_ADDR_LEN - 1 : 0]            bus_ctrl_req_paddr_q; 
 reg   [              XLEN - 1 : 0]                  bus_ctrl_req_data_q;
@@ -115,6 +118,7 @@ assign bus_ctrl_wb_arb_wb_vld_o = bus_ctrl_req_done & bus_ctrl_req_vld_q;
 assign bus_ctrl_wb_arb_wb_rob_index_o = bus_ctrl_req_rob_index_q;
 assign bus_ctrl_wb_arb_prf_wb_vld_o = bus_ctrl_wb_arb_wb_vld_o & ~bus_ctrl_req_load_or_store_q;
 assign bus_ctrl_wb_arb_prf_wb_rd_addr_o = bus_ctrl_req_rd_addr_q;
+assign bus_ctrl_wb_arb_prf_wb_is_float_o = bus_ctrl_req_is_float_q;
 assign bus_ctrl_wb_arb_prf_wb_data_o = (bus_ctrl_req_unsigned | (bus_ctrl_req_size == 3)) ? bus_ctrl_req_data_q :
                                     (bus_ctrl_req_size == 0) ? {{(XLEN - 8){bus_ctrl_req_data_q[7]}}, (bus_ctrl_req_data_q[7:0])} : 
                                     (bus_ctrl_req_size == 1) ? {{(XLEN - 16){bus_ctrl_req_data_q[15]}}, (bus_ctrl_req_data_q[15:0])} :
@@ -135,6 +139,7 @@ always @(posedge clk) begin
         bus_ctrl_req_is_fence_q <= 0;
         bus_ctrl_req_rob_index_q <= 0;
         bus_ctrl_req_rd_addr_q <= 0;
+	bus_ctrl_req_is_float_q <= 0;
         bus_ctrl_req_opcode_q <= 0;
         bus_ctrl_req_paddr_q <= 0;
     end 
@@ -144,6 +149,7 @@ always @(posedge clk) begin
             bus_ctrl_req_is_fence_q <= lsq_bus_ctrl_req_is_fence_i;
             bus_ctrl_req_rob_index_q <= lsq_bus_ctrl_req_rob_index_i;
             bus_ctrl_req_rd_addr_q <= lsq_bus_ctrl_req_rd_addr_i;
+	    bus_ctrl_req_is_float_q <= lsq_bus_ctrl_req_is_float_i;
             bus_ctrl_req_opcode_q <= lsq_bus_ctrl_req_opcode_i;
             bus_ctrl_req_paddr_q <= lsq_bus_ctrl_req_paddr_i;
         end

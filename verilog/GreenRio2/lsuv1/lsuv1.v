@@ -1,9 +1,9 @@
 `ifndef _LSUV1_V_
 `define _LSUV1_V_
-`ifdef VERILATOR
-`include "hehe_cfg.vh"
-`include "params.vh"
-`endif
+`ifndef VCS
+`include "../hehe_cfg.vh"
+`include "../params.vh"
+`endif // VCS
 // TODO: need to support FENCE and AMO
 module lsuv1 #(
     parameter LSQ_ENTRY_NUM = 8,
@@ -16,6 +16,10 @@ module lsuv1 #(
     // <> RCU
     input                                                                                               rcu_lsu_vld_i,
     input                                                                                               rcu_lsu_ls_i,
+    input
+    	rcu_lsu_is_float_i,
+    input [4:0]
+	rcu_lsu_func5_i,
     input  [LDU_OP_WIDTH - 1 : 0]                                                                       rcu_lsu_ld_opcode_i,
     input  [STU_OP_WIDTH - 1 : 0]                                                                       rcu_lsu_st_opcode_i,
     input                                                                                               rcu_lsu_fenced_i,
@@ -30,6 +34,8 @@ module lsuv1 #(
     output [ROB_INDEX_WIDTH - 1 : 0]                                                                    lsu_rcu_comm_rob_index_o,
     output [PHY_REG_ADDR_WIDTH - 1 : 0]                                                                 lsu_rcu_comm_rd_addr_o,
     output [XLEN - 1 : 0]                                                                               lsu_rcu_comm_data_o,
+    output
+    	lsu_rcu_comm_is_float_o,
     output                                                                                              lsu_rcu_exception_vld_o,
     output [EXCEPTION_CAUSE_WIDTH - 1 : 0]                                                              lsu_rcu_ecause_o,                                      
                                                     
@@ -50,10 +56,11 @@ module lsuv1 #(
     output                                                                                              lsu_l1d_ld_req_vld_o,
     output  [     ROB_INDEX_WIDTH - 1 : 0]                                                              lsu_l1d_ld_req_rob_index_o,
     output  [    PHY_REG_ADDR_WIDTH - 1 : 0]                                                            lsu_l1d_ld_req_rd_addr_o, // no need
+    output												lsu_l1d_ld_req_is_float_o,
     output  [      LDU_OP_WIDTH - 1 : 0]                                                                lsu_l1d_ld_req_opcode_o,
-    output  [       ADDR_INDEX_LEN - 1 : 0]                                                             lsu_l1d_ld_req_index_o, 
-    output  [      ADDR_OFFSET_LEN - 1 : 0]                                                             lsu_l1d_ld_req_offset_o, 
-    output  [     VIRTUAL_ADDR_TAG_LEN -1 : 0]                                                          lsu_l1d_ld_req_vtag_o, 
+    output  [       L1D_INDEX_WIDTH - 1 : 0]                                                            lsu_l1d_ld_req_index_o, 
+    output  [      L1D_OFFSET_WIDTH - 1 : 0]                                                            lsu_l1d_ld_req_offset_o, 
+    output  [     L1D_TAG_WIDTH -1 : 0]                                                                 lsu_l1d_ld_req_vtag_o, 
     // Store request                                                    
     input                                                                                               l1d_lsu_st_req_rdy_i,
     output                                                                                              lsu_l1d_st_req_vld_o,
@@ -71,6 +78,7 @@ module lsuv1 #(
     // wb prf
     input  [LSU_DATA_PIPE_COUNT - 1 : 0]                                                                l1d_lsu_prf_wb_vld_i,
     input  [PHY_REG_ADDR_WIDTH * LSU_DATA_PIPE_COUNT - 1 : 0]                                           l1d_lsu_prf_wb_rd_addr_i,
+    input 												l1d_lsu_prf_wb_is_float_i,
     input  [XLEN*LSU_DATA_PIPE_COUNT - 1 : 0]                                                           l1d_lsu_prf_wb_data_i,
     // kill                                                     
     output                                                                                              lsu_l1d_kill_req_o,
@@ -119,6 +127,7 @@ module lsuv1 #(
     output  [    PHY_REG_ADDR_WIDTH - 1 : 0]                                                            wrd_addr_d,                   
     output  [     ROB_INDEX_WIDTH - 1 : 0]                                                              rrob_index_d,
     output  [    PHY_REG_ADDR_WIDTH - 1 : 0]                                                            rrd_addr_d,                                   
+    output												rfloat_d,
 `endif // DPRAM64_2R1W
     // <> wb bus                                                    
     output                                                                                              lsu_wb_cyc_o,
@@ -159,12 +168,14 @@ wire   [              XLEN - 1 : 0]                                             
 wire                                                                                                    bus_ctrl_wb_arb_wb_vld;
 wire [ROB_INDEX_WIDTH - 1 : 0]                                                                          bus_ctrl_wb_arb_wb_rob_index;
 wire                                                                                                    bus_ctrl_wb_arb_prf_wb_vld;
+wire 													bus_ctrl_wb_arb_prf_wb_is_float;
 wire [PHY_REG_ADDR_WIDTH - 1 : 0]                                                                       bus_ctrl_wb_arb_prf_wb_rd_addr;
 wire [XLEN - 1 : 0]                                                                                     bus_ctrl_wb_arb_prf_wb_data;
 wire                                                                                                    wb_arb_bus_ctrl_rdy;
 
 wire                                                                                                    lsu_prf_wb_vld;
 wire  [PHY_REG_ADDR_WIDTH - 1 : 0]                                                                      lsu_prf_wb_rd_addr;
+wire 													lsu_prf_wb_is_float;
 wire  [XLEN - 1 : 0]                                                                                    lsu_prf_wb_data;
 
 wire                                                                                                    req_is_sfence_vma;
@@ -175,6 +186,13 @@ wire lsu_l1d_kill_req_d = lsq_wakeup_kill |
                             pma_lsq_is_io
                             ;
 reg lsu_l1d_kill_req_q;
+
+wire  [       ADDR_INDEX_LEN - 1 : 0]         lsq_l1d_ld_req_index;
+wire  [      ADDR_OFFSET_LEN - 1 : 0]         lsq_l1d_ld_req_offset; 
+wire  [     VIRTUAL_ADDR_TAG_LEN -1 : 0]      lsq_l1d_ld_req_vtag;
+
+assign {lsu_l1d_ld_req_vtag_o, lsu_l1d_ld_req_index_o, lsu_l1d_ld_req_offset_o} = 
+        {{(PHYSICAL_ADDR_LEN - VIRTUAL_ADDR_LEN){1'b0}}, lsq_l1d_ld_req_vtag, lsq_l1d_ld_req_index, lsq_l1d_ld_req_offset};
 always @(posedge clk) begin
     if(rst) begin
         lsu_l1d_kill_req_q <= 0;
@@ -184,7 +202,8 @@ always @(posedge clk) begin
     end
 end
 
-assign lsu_rcu_comm_data_o = lsu_prf_wb_data;
+wire [4:0] lsu_rcu_comm_func5;
+assign lsu_rcu_comm_data_o = (lsu_rcu_comm_func5 == 5'd2 && lsu_rcu_comm_is_float_o) ? ({ 32'hffffffff, lsu_prf_wb_data[31:0] }) : lsu_prf_wb_data;
 
 assign rcu_opcode = rcu_lsu_ls_i ? rcu_lsu_st_opcode_i : {{(LS_OPCODE_WIDTH - LDU_OP_WIDTH){1'b0}}, rcu_lsu_ld_opcode_i};
 assign lsu_rdy_o = lsq_rdy;
@@ -217,6 +236,7 @@ assign wrd_addr_d = lsu_l1d_st_req_rd_addr_o;
 
 assign rrob_index_d = lsu_l1d_ld_req_rob_index_o;
 assign rrd_addr_d = lsu_l1d_ld_req_rd_addr_o;
+assign rfloat_d   = lsu_l1d_ld_req_is_float_o;
 assign raddr_d = {{(PHYSICAL_ADDR_LEN - VIRTUAL_ADDR_LEN){1'b0}}, lsu_l1d_ld_req_vtag_o, lsu_l1d_ld_req_index_o, lsu_l1d_ld_req_offset_o};
 assign re_d = 
     (lsq_l1d_ld_ldu_opcode == LDU_LB || lsq_l1d_ld_ldu_opcode == LDU_LBU) ? 2'b00 : 
@@ -228,7 +248,7 @@ assign runsigned_d = (lsq_l1d_ld_ldu_opcode == LDU_LBU || lsq_l1d_ld_ldu_opcode 
 
 assign req_is_sfence_vma = rcu_lsu_vld_i & rcu_lsu_ls_i & (rcu_lsu_st_opcode_i == STU_SFENCE_VMA);
 assign rcu_lsq_sfence_vma_asid = req_is_sfence_vma ? rcu_agu_virt_offset_i[ASID_WIDTH - 1 : 0] : 0;
-assign lsq_vaddr = req_is_sfence_vma ? (rcu_agu_virt_base_i[VIRTUAL_ADDR_LEN - 1 : 0] << (ADDR_OFFSET_LEN + ADDR_INDEX_LEN)) : agu_virt_addr;
+assign lsq_vaddr = req_is_sfence_vma ? {rcu_agu_virt_base_i[VIRTUAL_ADDR_TAG_LEN - 1 : 0] >> (ADDR_INDEX_LEN + ADDR_OFFSET_LEN)} : agu_virt_addr;
 lsu_agu agu(
     .clk(clk),
     .agu_base_i(rcu_agu_virt_base_i),
@@ -247,6 +267,7 @@ lsu_wb_arb lsu_wb_arb(
     .l1d_wb_arb_wb_rob_index_i(l1d_lsu_wb_rob_index_i),
     .l1d_wb_arb_prf_wb_vld_i(l1d_lsu_prf_wb_vld_i),
     .l1d_wb_arb_prf_wb_rd_addr_i(l1d_lsu_prf_wb_rd_addr_i),
+    .l1d_wb_arb_prf_wb_is_float_i(l1d_lsu_prf_wb_is_float_i),
     .l1d_wb_arb_prf_wb_data_i(l1d_lsu_prf_wb_data_i),
 
     // <> Bus
@@ -254,6 +275,7 @@ lsu_wb_arb lsu_wb_arb(
     .bus_wb_arb_wb_rob_index_i(bus_ctrl_wb_arb_wb_rob_index),
     .bus_wb_arb_prf_wb_vld_i(bus_ctrl_wb_arb_prf_wb_vld),
     .bus_wb_arb_prf_wb_rd_addr_i(bus_ctrl_wb_arb_prf_wb_rd_addr),
+    .bus_wb_arb_prf_wb_is_float_i(bus_ctrl_wb_arb_prf_is_float),
     .bus_wb_arb_prf_wb_data_i(bus_ctrl_wb_arb_prf_wb_data),
     .wb_arb_bus_rdy_o(wb_arb_bus_ctrl_rdy),
 
@@ -265,6 +287,7 @@ lsu_wb_arb lsu_wb_arb(
     // <> PRF
     .wb_arb_prf_wb_vld_o(lsu_prf_wb_vld),
     .wb_arb_prf_wb_rd_addr_o(lsu_prf_wb_rd_addr),
+    .wb_arb_prf_wb_is_float_o(lsu_prf_wb_is_float),
     .wb_arb_prf_wb_data_o(lsu_prf_wb_data)
 );
 
@@ -301,6 +324,7 @@ lsu_bus_ctrl lsu_bus_ctrl(
     .lsq_bus_ctrl_req_is_fence_i(lsq_bus_ctrl_req_is_fence),
     .lsq_bus_ctrl_req_rob_index_i(lsq_bus_ctrl_req_rob_index),
     .lsq_bus_ctrl_req_rd_addr_i(lsq_bus_ctrl_req_rd_addr),
+    .lsq_bus_ctrl_req_is_float_i(lsq_bus_ctrl_req_is_float),
     .lsq_bus_ctrl_req_opcode_i(lsq_bus_ctrl_req_opcode),
     .lsq_bus_ctrl_req_paddr_i(lsq_bus_ctrl_req_paddr), 
     .lsq_bus_ctrl_req_data_i(lsq_bus_ctrl_req_data),
@@ -318,6 +342,7 @@ lsu_bus_ctrl lsu_bus_ctrl(
     .bus_ctrl_wb_arb_wb_rob_index_o(bus_ctrl_wb_arb_wb_rob_index),
     .bus_ctrl_wb_arb_prf_wb_vld_o(bus_ctrl_wb_arb_prf_wb_vld),
     .bus_ctrl_wb_arb_prf_wb_rd_addr_o(bus_ctrl_wb_arb_prf_wb_rd_addr),
+    .bus_ctrl_wb_arb_prf_wb_is_float_o(bus_ctrl_wb_arb_prf_wb_is_float),
     .bus_ctrl_wb_arb_prf_wb_data_o(bus_ctrl_wb_arb_prf_wb_data),
     .wb_arb_bus_ctrl_rdy_i(wb_arb_bus_ctrl_rdy)
 );
@@ -336,6 +361,8 @@ lsu_lsq  #(
     .rcu_lsq_vld_i(rcu_lsu_vld_i),
     .rcu_lsq_ls_i(rcu_lsu_ls_i),
     .rcu_lsq_opcode_i(rcu_opcode),
+    .rcu_lsq_is_float_i(rcu_lsu_is_float_i),
+    .rcu_lsq_func5_i(rcu_lsu_func5_i),
     .rcu_lsq_fenced_i(rcu_lsu_fenced_i),
     .agu_lsq_virt_addr_i(lsq_vaddr),
     .rcu_lsq_sfence_vma_asid_i(rcu_lsq_sfence_vma_asid),
@@ -349,6 +376,8 @@ lsu_lsq  #(
     .lsq_rcu_comm_vld_o(lsu_rcu_comm_vld_o),
     .lsq_rcu_comm_rob_index_o(lsu_rcu_comm_rob_index_o),
     .lsq_rcu_comm_rd_addr_o(lsu_rcu_comm_rd_addr_o),
+    .lsq_rcu_comm_is_float_o(lsu_rcu_comm_is_float_o),
+    .lsq_rcu_comm_func5_o(lsu_rcu_comm_func5),
     .lsq_rcu_comm_exception_vld_o(lsu_rcu_exception_vld_o),
     .lsq_rcu_comm_ecause_o(lsu_rcu_ecause_o),
     // Write Back (from bus or d$)
@@ -356,6 +385,7 @@ lsu_lsq  #(
     .wb_arb_lsq_wb_rob_index_i(wb_arb_lsq_wb_rob_index),
     .wb_arb_lsq_prf_wb_vld_i(lsu_prf_wb_vld),
     .wb_arb_lsq_prf_wb_rd_addr_i(lsu_prf_wb_rd_addr),
+    .wb_arb_lsq_prf_wb_is_float_i(lsu_prf_wb_is_float),
     .wb_arb_rdy_i(wb_arb_rdy),
     // <> MC
     .mc_lsq_exception_vld_i(misalign_exception_vld),
@@ -377,10 +407,11 @@ lsu_lsq  #(
     .lsq_l1d_ld_req_vld_o(lsu_l1d_ld_req_vld_o),
     .lsq_l1d_ld_req_rob_index_o(lsu_l1d_ld_req_rob_index_o),
     .lsq_l1d_ld_req_rd_addr_o(lsu_l1d_ld_req_rd_addr_o), // no need
+    .lsq_l1d_ld_req_is_float_o(lsu_l1d_ld_req_is_float_o),
     .lsq_l1d_ld_req_opcode_o(lsu_l1d_ld_req_opcode_o),
-    .lsq_l1d_ld_req_index_o(lsu_l1d_ld_req_index_o), 
-    .lsq_l1d_ld_req_offset_o(lsu_l1d_ld_req_offset_o), 
-    .lsq_l1d_ld_req_vtag_o(lsu_l1d_ld_req_vtag_o), 
+    .lsq_l1d_ld_req_index_o(lsq_l1d_ld_req_index), 
+    .lsq_l1d_ld_req_offset_o(lsq_l1d_ld_req_offset), 
+    .lsq_l1d_ld_req_vtag_o(lsq_l1d_ld_req_vtag), 
     // Store request
     .l1d_lsq_st_req_rdy_i(l1d_lsu_st_req_rdy_i),
     .lsq_l1d_st_req_vld_o(lsu_l1d_st_req_vld_o),
@@ -445,6 +476,7 @@ lsu_lsq  #(
     .lsq_bus_ctrl_req_is_fence_o(lsq_bus_ctrl_req_is_fence),
     .lsq_bus_ctrl_req_rob_index_o(lsq_bus_ctrl_req_rob_index),
     .lsq_bus_ctrl_req_rd_addr_o(lsq_bus_ctrl_req_rd_addr),
+    .lsq_bus_ctrl_req_is_float_o(lsq_bus_ctrl_req_is_float),
     .lsq_bus_ctrl_req_opcode_o(lsq_bus_ctrl_req_opcode),
     .lsq_bus_ctrl_req_paddr_o(lsq_bus_ctrl_req_paddr), 
     .lsq_bus_ctrl_req_data_o(lsq_bus_ctrl_req_data)
@@ -457,9 +489,9 @@ always @(posedge clk) begin
     //         agu_virt_addr,rcu_lsu_fenced_i, rcu_lsu_rob_index_i, rcu_lsu_rd_addr_i, rcu_lsu_data_i
     //     );
     // end 
-    if(rcu_lsu_wakeup_i) begin
-        $display($realtime, ":\twakeup @ %d", rcu_lsu_wakeup_rob_index_i);
-    end
+    // if(rcu_lsu_wakeup_i) begin
+    //     $display($realtime, ":\twakeup @ %d", rcu_lsu_wakeup_rob_index_i);
+    // end
 `ifdef LOG_LV2
     // if(lsu_l1d_ld_req_vld_o & l1d_lsu_ld_req_rdy_i) begin
     //     $display($realtime, ":\tLSU ld req sent. ld-%d\t@ 0x%x\trob_index:%d\trd_addr:%d", 

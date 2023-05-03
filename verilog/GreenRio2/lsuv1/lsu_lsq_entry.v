@@ -1,8 +1,8 @@
 `ifndef _LSU_LSQ_ENTRY_V_
 `define _LSU_LSQ_ENTRY_V_
-`ifdef VERILATOR
-`include "params.vh"
-`endif
+`ifndef VCS
+`include "../params.vh"
+`endif // VCS
 
 module lsu_lsq_entry (
     // global
@@ -18,6 +18,8 @@ module lsu_lsq_entry (
     input [LSQ_ENTRY_OFFSET_WIDTH - 1 : 0]      lsq_entry_offset_i,
     input [LSQ_ENTRY_ROB_INDEX_WIDTH - 1 : 0]   lsq_entry_rob_index_i,
     input [LSQ_ENTRY_RD_ADDR_WIDTH - 1 : 0]     lsq_entry_rd_addr_i,
+    input 					lsq_entry_is_float_i,
+    input [4:0]					lsq_entry_func5_i,
     input [XLEN - 1 : 0]                        lsq_entry_data_i,
     input                                       lsq_entry_exception_vld_i,
     input [EXCEPTION_CAUSE_WIDTH - 1 : 0]       lsq_entry_ecause_i,
@@ -50,6 +52,8 @@ module lsu_lsq_entry (
     output                                      lsq_entry_exec_o,
     output                                      lsq_entry_succ_o,
     output [LSQ_ENTRY_RD_ADDR_WIDTH - 1 : 0]    lsq_entry_rd_addr_o,
+    output 					lsq_entry_is_float_o,
+    output [4:0]				lsq_entry_func5_o,
     output [XLEN - 1 : 0]                       lsq_entry_data_o,
     output                                      lsq_entry_exception_vld_o,
     output [EXCEPTION_CAUSE_WIDTH - 1 : 0]      lsq_entry_ecause_o
@@ -63,6 +67,8 @@ wire [LSQ_ENTRY_INDEX_WIDTH -1 : 0]         lsq_entry_index_d;
 wire [LSQ_ENTRY_OFFSET_WIDTH - 1 : 0]       lsq_entry_offset_d;
 wire [LSQ_ENTRY_ROB_INDEX_WIDTH - 1 : 0]    lsq_entry_rob_index_d;
 wire [LSQ_ENTRY_RD_ADDR_WIDTH - 1 : 0]      lsq_entry_rd_addr_d;
+wire 					    lsq_entry_is_float_d;
+wire [4:0]				    lsq_entry_func5_d;
 wire [XLEN - 1 : 0]                         lsq_entry_data_d;
 wire [LSQ_ENTRY_TAG_WIDTH - 1 : 0]          lsq_entry_tag_d;
 wire                                        lsq_entry_virt_d;
@@ -94,6 +100,8 @@ reg                                         lsq_entry_awake_q;
 reg                                         lsq_entry_exec_q;
 reg                                         lsq_entry_succ_q;
 reg[LSQ_ENTRY_RD_ADDR_WIDTH - 1 : 0]        lsq_entry_rd_addr_q;
+reg				            lsq_entry_is_float_q;
+reg [4:0]				    lsq_entry_func5_q;
 reg[XLEN - 1 : 0]                           lsq_entry_data_q;
 reg                                         lsq_entry_exception_vld_q;
 reg [EXCEPTION_CAUSE_WIDTH - 1 : 0]         lsq_entry_ecause_q;
@@ -108,6 +116,8 @@ assign lsq_entry_offset_d           = lsq_entry_offset_i;
 assign lsq_entry_rob_index_d        = lsq_entry_rob_index_i;
 assign lsq_entry_virt_d             = (lsq_entry_vld_i) ? 1 : dtlb_lsq_entry_virt_i;
 assign lsq_entry_rd_addr_d          = lsq_entry_rd_addr_i;
+assign lsq_entry_is_float_d         = lsq_entry_is_float_i;
+assign lsq_entry_func5_d            = lsq_entry_func5_i;
 assign lsq_entry_data_d             = lsq_entry_data_i;
 assign lsq_entry_awake_d            = lsq_entry_awake_i;
 assign lsq_entry_exec_d             = ~lsq_entry_replay_i & lsq_entry_exec_i;
@@ -128,6 +138,8 @@ assign lsq_entry_awake_o            = lsq_entry_awake_q;
 assign lsq_entry_exec_o             = lsq_entry_exec_q;
 assign lsq_entry_succ_o             = lsq_entry_succ_q;
 assign lsq_entry_rd_addr_o          = lsq_entry_rd_addr_q;
+assign lsq_entry_is_float_o         = lsq_entry_is_float_q;
+assign lsq_entry_func5_o            = lsq_entry_func5_q;
 assign lsq_entry_data_o             = lsq_entry_data_q;
 assign lsq_entry_exception_vld_o    = lsq_entry_exception_vld_q;
 assign lsq_entry_ecause_o           = lsq_entry_ecause_q;
@@ -159,6 +171,8 @@ always @(posedge clk) begin // initial data
         lsq_entry_offset_q <= '0;
         lsq_entry_rob_index_q <= '0;
         lsq_entry_rd_addr_q <= '0;
+	lsq_entry_is_float_q <= '0;
+	lsq_entry_func5_q <= '0;
         lsq_entry_data_q <= '0;
     end
     else begin
@@ -170,6 +184,8 @@ always @(posedge clk) begin // initial data
             lsq_entry_offset_q <= lsq_entry_offset_d;
             lsq_entry_rob_index_q <= lsq_entry_rob_index_d;
             lsq_entry_rd_addr_q <= lsq_entry_rd_addr_d;
+	    lsq_entry_is_float_q <= lsq_entry_is_float_d;
+	    lsq_entry_func5_q <= lsq_entry_func5_d;
             lsq_entry_data_q <= lsq_entry_data_d;
         end
     end 
@@ -236,7 +252,7 @@ always @(posedge clk) begin // succ
         lsq_entry_ecause_q <= 0;
     end
     else begin
-        if(lsq_entry_succ_en) begin
+        if(lsq_entry_exception_en) begin
             lsq_entry_exception_vld_q <= lsq_entry_exception_vld_d;
             lsq_entry_ecause_q <= lsq_entry_ecause_d;
         end

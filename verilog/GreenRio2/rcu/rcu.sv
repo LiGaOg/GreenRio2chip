@@ -1,8 +1,8 @@
 `ifndef _RCU_V_
 `define _RCU_V_
-`ifdef VERILATOR
-`include "params.vh"
-`endif
+`ifndef SYNTHESIS
+`include "../params.vh"
+`endif // SYNTHESIS
 module rcu(
     input clk                                                   ,
     input rst                                                   ,
@@ -20,6 +20,8 @@ module rcu(
     input uses_rs1_second_i                                     ,
     input uses_rs2_first_i                                      ,
     input uses_rs2_second_i                                     ,
+    input uses_rs3_first_i					,
+    input uses_rs3_second_i					,
     input uses_rd_first_i                                       ,
     input uses_rd_second_i                                      ,
     input uses_csr_first_i                                      ,
@@ -30,10 +32,12 @@ module rcu(
     input [PC_WIDTH-1:0] next_pc_second_i                       ,
     input [PC_WIDTH-1:0] predict_pc_first_i                     ,
     input [PC_WIDTH-1:0] predict_pc_second_i                    ,
-    input [4:0] rs1_address_first_i                             ,
-    input [4:0] rs1_address_second_i                            ,
-    input [4:0] rs2_address_first_i                             ,
-    input [4:0] rs2_address_second_i                            ,
+    input [5:0] rs1_address_first_i                             ,
+    input [5:0] rs1_address_second_i                            ,
+    input [5:0] rs2_address_first_i                             ,
+    input [5:0] rs2_address_second_i                            ,
+    input [5:0] rs3_address_first_i				,
+    input [5:0] rs3_address_second_i				,
     input [4:0] rd_address_first_i                              ,
     input [4:0] rd_address_second_i                             ,
     input [11:0] csr_address_first_i                            ,
@@ -72,6 +76,8 @@ module rcu(
     input [1:0] fu_select_a_second_i                            ,
     input [1:0] fu_select_b_first_i                             ,
     input [1:0] fu_select_b_second_i                            ,
+    input [1:0] fu_select_c_first_i				,
+    input [1:0] fu_select_c_second_i				,
     input jump_first_i                                          ,
     input jump_second_i                                         ,
     input branch_first_i                                        ,
@@ -82,10 +88,16 @@ module rcu(
     input load_second_i                                         ,
     input store_first_i                                         ,
     input store_second_i                                        ,
+    input float_first_i						,
+    input float_second_i					,
+    input [2 : 0] float_roundingMode_first_i			,
+    input [2 : 0] float_roundingMode_second_i			,
     input [LDU_OP_WIDTH-1:0] ldu_op_first_i                     ,
     input [LDU_OP_WIDTH-1:0] ldu_op_second_i                    ,
     input [STU_OP_WIDTH-1:0] stu_op_first_i                     ,
     input [STU_OP_WIDTH-1:0] stu_op_second_i                    ,
+    input [FLOAT_OP_WIDTH-1:0] float_op_first_i			,
+    input [FLOAT_OP_WIDTH-1:0] float_op_second_i		,
     input aq_first_i                                            ,
     input aq_second_i                                           ,
     input rl_first_i                                            ,
@@ -149,8 +161,13 @@ module rcu(
     output [IMM_LEN-1:0] rcu_alu1_imm_data_o                    ,
     output [1:0] rcu_alu1_select_a_o                            ,
     output [1:0] rcu_alu1_select_b_o                            ,
+    output [1:0] rcu_alu1_select_c_o                            ,
     output [XLEN-1:0] rcu_alu1_rs1_data_o                       ,
     output [XLEN-1:0] rcu_alu1_rs2_data_o                       ,
+    output [XLEN-1:0] rcu_alu1_rs3_data_o			,
+    output rcu_alu1_is_float_instruction_o			,
+    output [2:0] rcu_alu1_roundingMode_o                        ,
+    output [4:0] rcu_alu1_ftype_o					,
     output  rcu_alu1_jump_o                                     ,
     output  rcu_alu1_branch_o                                   ,
     output  rcu_alu1_half_o                                     ,
@@ -165,8 +182,13 @@ module rcu(
     output [IMM_LEN-1:0] rcu_alu2_imm_data_o                    ,
     output [1:0] rcu_alu2_select_a_o                            ,
     output [1:0] rcu_alu2_select_b_o                            ,
+    output [1:0] rcu_alu2_select_c_o				,
     output [XLEN-1:0] rcu_alu2_rs1_data_o                       ,
     output [XLEN-1:0] rcu_alu2_rs2_data_o                       ,
+    output [XLEN-1:0] rcu_alu2_rs3_data_o			,
+    output rcu_alu2_is_float_instruction_o			,
+    output [2:0] rcu_alu2_roundingMode_o			,
+    output [4:0] rcu_alu2_ftype_o					,
     output  rcu_alu2_jump_o                                     ,
     output  rcu_alu2_branch_o                                   ,
     output  rcu_alu2_half_o                                     ,
@@ -212,12 +234,16 @@ module rcu(
     `endif
     output [PHY_REG_ADDR_WIDTH-1:0] rcu_prf_preg_prs1_address_first_o        ,
     output [PHY_REG_ADDR_WIDTH-1:0] rcu_prf_preg_prs2_address_first_o        ,
+    output [PHY_REG_ADDR_WIDTH-1:0] rcu_prf_preg_prs3_address_first_o        ,
     output [PHY_REG_ADDR_WIDTH-1:0] rcu_prf_preg_prs1_address_second_o       ,
     output [PHY_REG_ADDR_WIDTH-1:0] rcu_prf_preg_prs2_address_second_o       ,
+    output [PHY_REG_ADDR_WIDTH-1:0] rcu_prf_preg_prs3_address_second_o	     ,
     input  [XLEN-1:0]               prf_rcu_phyreg_first_rs1_data_i         ,
     input  [XLEN-1:0]               prf_rcu_phyreg_first_rs2_data_i          ,
+    input  [XLEN-1:0]               prf_rcu_phyreg_first_rs3_data_i	     ,
     input  [XLEN-1:0]               prf_rcu_phyreg_second_rs1_data_i         ,
     input  [XLEN-1:0]               prf_rcu_phyreg_second_rs2_data_i         ,
+    input  [XLEN-1:0]		    prf_rcu_phyreg_second_rs3_data_i	     ,
     output [PHY_REG_ADDR_WIDTH-1:0] rcu_prf_physical_alu1_csr_wrb_addr_o     ,
     output [XLEN-1:0]               rcu_prf_physical_alu1_csr_wrb_data_o     ,
     output                          rcu_prf_physical_alu1_csr_done_valid_o   
@@ -235,8 +261,11 @@ wire [FRLIST_DATA_WIDTH-1:0] free_list_rdata_first, free_list_rdata_second;
 wire free_list_full, free_list_almost_full, free_list_empty, free_list_almost_empty;
 //physical regfile
 reg [PHY_REG_ADDR_WIDTH-1:0] preg_prs1_address_first, preg_prs2_address_first, preg_prs1_address_second, preg_prs2_address_second;
+reg [PHY_REG_ADDR_WIDTH-1:0] preg_prs3_address_first, preg_prs3_address_second;
 wire [XLEN-1:0] phyreg_first_rs1_data, phyreg_first_rs2_data, phyreg_second_rs1_data, phyreg_second_rs2_data;
+wire [XLEN-1:0] phyreg_first_rs3_data, phyreg_second_rs3_data;
 reg [XLEN-1:0] select_first_rs1_data, select_first_rs2_data, select_second_rs1_data, select_second_rs2_data;
+reg [XLEN-1:0] select_first_rs3_data, select_second_rs3_data;
 // wire [PHY_REG_ADDR_WIDTH-1:0] physical_alu1_wrb_addr_i, physical_alu2_wrb_addr_i, physical_lsu_wrb_addr_i, physical_md_wrb_addr_i;
 // wire [XLEN-1:0] physical_alu1_wrb_data_i, physical_alu2_wrb_data_i, physical_lsu_wrb_data_i, physical_md_wrb_data_i;
 // wire physical_alu1_wrb_valid_i, physical_alu2_wrb_valid_i, physical_lsu_wrb_valid_i, physical_md_wrb_valid_i;
@@ -247,12 +276,12 @@ wire [PHY_REG_ADDR_WIDTH-1:0] physical_alu1_csr_wrb_addr;
 reg available_table[PHY_REG_SIZE-1:0];
 wire [PHY_REG_SIZE-1:0] real_available;
 //renaming
-reg [PHY_REG_ADDR_WIDTH-1:0] rename_reg[31:0];
-reg [PHY_REG_ADDR_WIDTH-1:0] rename_reg_backup[31:0];
-wire [PHY_REG_ADDR_WIDTH-1:0] name_prs1_first, name_prs2_first, name_lprd_first, name_prd_first;
-wire [PHY_REG_ADDR_WIDTH-1:0] name_prs1_second, name_prs2_second, name_lprd_second, name_prd_second;
-wire [PHY_REG_ADDR_WIDTH-1:0] prs1_first, prs2_first, prd_first, lprd_first;
-wire [PHY_REG_ADDR_WIDTH-1:0] prs1_second, prs2_second, prd_second, lprd_second;
+reg [PHY_REG_ADDR_WIDTH-1:0] rename_reg[63:0];
+reg [PHY_REG_ADDR_WIDTH-1:0] rename_reg_backup[63:0];
+wire [PHY_REG_ADDR_WIDTH-1:0] name_prs1_first, name_prs2_first, name_prs3_first, name_lprd_first, name_prd_first;
+wire [PHY_REG_ADDR_WIDTH-1:0] name_prs1_second, name_prs2_second, name_prs3_second, name_lprd_second, name_prd_second;
+wire [PHY_REG_ADDR_WIDTH-1:0] prs1_first, prs2_first, prs3_first, prd_first, lprd_first;
+wire [PHY_REG_ADDR_WIDTH-1:0] prs1_second, prs2_second, prs3_second, prd_second, lprd_second;
 //rob decode op signal
 reg [PC_WIDTH-1:0] rob_op_pc[ROB_SIZE-1:0];
 reg [PC_WIDTH-1:0] rob_op_next_pc[ROB_SIZE-1:0];
@@ -272,6 +301,7 @@ reg rob_op_is_alu[ROB_SIZE-1:0];
 reg rob_op_alu_modify[ROB_SIZE-1:0];
 reg [1:0] rob_op_alu_select_a[ROB_SIZE-1:0];
 reg [1:0] rob_op_alu_select_b[ROB_SIZE-1:0];
+reg [1:0] rob_op_alu_select_c[ROB_SIZE-1:0];
 reg rob_op_alu_jump[ROB_SIZE-1:0];
 reg rob_op_alu_branch[ROB_SIZE-1:0];
 //MD
@@ -279,8 +309,10 @@ reg rob_op_is_md[ROB_SIZE-1:0];
 //LSU
 reg rob_op_is_load[ROB_SIZE-1:0];
 reg rob_op_is_store[ROB_SIZE-1:0];
+reg rob_op_is_float[ROB_SIZE-1:0];
 reg [LDU_OP_WIDTH-1:0] rob_op_ldu_op[ROB_SIZE-1:0];
 reg [STU_OP_WIDTH-1:0] rob_op_stu_op[ROB_SIZE-1:0];
+reg [FLOAT_OP_WIDTH-1:0] rob_op_float_op[ROB_SIZE-1:0];
 reg rob_op_aq[ROB_SIZE-1:0];
 reg rob_op_rl[ROB_SIZE-1:0];
 //CSR
@@ -314,6 +346,8 @@ reg [PC_WIDTH-1:0] rob_final_branch_pc[ROB_SIZE-1:0];
 reg [PHY_REG_ADDR_WIDTH-1:0] rob_prs1[ROB_SIZE-1:0];
 //rob prs2
 reg [PHY_REG_ADDR_WIDTH-1:0] rob_prs2[ROB_SIZE-1:0];
+//rob prs3
+reg [PHY_REG_ADDR_WIDTH-1:0] rob_prs3[ROB_SIZE-1:0];
 //rob prd
 reg [PHY_REG_ADDR_WIDTH-1:0] rob_prd[ROB_SIZE-1:0];
 //rob rd
@@ -351,6 +385,7 @@ reg [PC_WIDTH-1:0] select_first_predict_pc    ;
 reg [IMM_LEN-1:0] select_first_imm           ;
 reg [1:0] select_first_select_a      ;
 reg [1:0] select_first_select_b      ;
+reg [1:0] select_first_select_c;
 // wire [PHY_REG_ADDR_WIDTH-1:0] preg_prs1_address_first    ;
 // wire [PHY_REG_ADDR_WIDTH-1:0] preg_prs2_address_first    ;
 reg select_first_is_alu        ;
@@ -362,8 +397,10 @@ reg select_first_is_md         ;
 reg [2:0] select_first_md_op         ;
 reg select_first_is_load   ;
 reg select_first_is_store  ;
+reg select_first_is_float;
 reg [LDU_OP_WIDTH-1:0] select_first_ld_opcode ;
 reg [STU_OP_WIDTH-1:0] select_first_st_opcode ;
+reg [FLOAT_OP_WIDTH-1:0] select_first_float_opcode ;
 reg select_first_lsu_fence ;
 reg [1:0] select_first_lsu_fence_op ; 
 reg select_first_aext;
@@ -383,6 +420,7 @@ reg [PC_WIDTH-1:0] select_second_predict_pc    ;
 reg [IMM_LEN-1:0] select_second_imm           ;
 reg [1:0] select_second_select_a      ;
 reg [1:0] select_second_select_b      ;
+reg [1:0] select_second_select_c      ;
 // wire [PHY_REG_ADDR_WIDTH-1:0] preg_prs1_address_second    ;
 // wire [PHY_REG_ADDR_WIDTH-1:0] preg_prs2_address_second    ;
 reg select_second_is_alu        ;
@@ -394,8 +432,10 @@ reg select_second_is_md         ;
 reg [2:0] select_second_md_op         ;
 reg select_second_is_load   ;
 reg select_second_is_store  ;
+reg select_second_is_float;
 reg [LDU_OP_WIDTH-1:0] select_second_ld_opcode ;
 reg [STU_OP_WIDTH-1:0] select_second_st_opcode ;
+reg [FLOAT_OP_WIDTH-1:0] select_second_float_opcode ;
 reg select_second_lsu_fence ;
 reg [1:0] select_second_lsu_fence_op ; 
 reg select_second_aext;
@@ -405,14 +445,17 @@ reg select_second_rl;
 reg [ROB_INDEX_WIDTH-1:0] alu1_rob_index       ;
 reg [PHY_REG_ADDR_WIDTH-1:0] alu1_prd_address     ;
 reg [2:0] alu1_func                     ;
+reg [FLOAT_OP_WIDTH-1:0] alu1_float_func ;
 reg [PC_WIDTH-1:0] alu1_pc              ;
 reg [PC_WIDTH-1:0] alu1_next_pc         ;
 reg [PC_WIDTH-1:0] alu1_predict_pc      ;
 reg [IMM_LEN-1:0] alu1_imm              ;
 reg [1:0] alu1_select_a        ;
 reg [1:0] alu1_select_b        ;
+reg [1:0] alu1_select_c	       ;
 reg [XLEN-1:0] alu1_rs1_data        ;
 reg [XLEN-1:0] alu1_rs2_data        ;
+reg [XLEN-1:0] alu1_rs3_data        ;
 reg alu1_jump            ;
 reg alu1_branch          ;
 reg alu1_half            ;
@@ -422,14 +465,17 @@ reg alu1_valid            ;
 reg [ROB_INDEX_WIDTH-1:0] alu2_rob_index       ;
 reg [PHY_REG_ADDR_WIDTH-1:0] alu2_prd_address     ;
 reg [2:0] alu2_func            ;
+reg [FLOAT_OP_WIDTH-1:0] alu2_float_func ;
 reg [PC_WIDTH-1:0] alu2_pc              ;
 reg [PC_WIDTH-1:0] alu2_next_pc         ;
 reg [PC_WIDTH-1:0] alu2_predict_pc      ;
 reg [IMM_LEN-1:0] alu2_imm             ;
 reg [1:0] alu2_select_a        ;
 reg [1:0] alu2_select_b        ;
+reg [1:0] alu2_select_c;
 reg [XLEN-1:0] alu2_rs1_data        ;
 reg [XLEN-1:0] alu2_rs2_data        ;
+reg [XLEN-1:0] alu2_rs3_data	    ;
 reg alu2_jump            ;
 reg alu2_branch          ;
 reg alu2_half            ;
@@ -552,13 +598,17 @@ assign rcu_prf_test_prd_second_o               = test_prd_second                
 `endif
 assign rcu_prf_preg_prs1_address_first_o       = preg_prs1_address_first          ;
 assign rcu_prf_preg_prs2_address_first_o       = preg_prs2_address_first          ;
+assign rcu_prf_preg_prs3_address_first_o       = preg_prs3_address_first	  ;
 assign rcu_prf_preg_prs1_address_second_o      = preg_prs1_address_second         ;
 assign rcu_prf_preg_prs2_address_second_o      = preg_prs2_address_second         ;
+assign rcu_prf_preg_prs3_address_second_o      = preg_prs3_address_second	  ;
 
 assign  phyreg_first_rs1_data  =  prf_rcu_phyreg_first_rs1_data_i             ;
 assign  phyreg_first_rs2_data =  prf_rcu_phyreg_first_rs2_data_i              ;
+assign  phyreg_first_rs3_data =  prf_rcu_phyreg_first_rs3_data_i	      ;
 assign  phyreg_second_rs1_data =  prf_rcu_phyreg_second_rs1_data_i             ;
 assign  phyreg_second_rs2_data=  prf_rcu_phyreg_second_rs2_data_i             ;
+assign  phyreg_second_rs3_data = prf_rcu_phyreg_second_rs3_data_i             ;
 assign rcu_prf_physical_alu1_csr_wrb_addr_o    = physical_alu1_csr_wrb_addr       ;
 assign rcu_prf_physical_alu1_csr_wrb_data_o    = physical_alu1_csr_wrb_data       ;
 assign rcu_prf_physical_alu1_csr_done_valid_o  = physical_alu1_csr_done_valid     ;
@@ -605,6 +655,24 @@ always @(*) begin
     end
 end
 always @(*) begin
+    select_first_rs3_data  = phyreg_first_rs3_data;
+    if((preg_prs3_address_first == physical_alu1_wrb_addr_i) & (physical_alu1_wrb_addr_i != 0) & func_alu1_done_valid_i) begin
+        select_first_rs3_data = physical_alu1_wrb_data_i;
+    end
+    if((preg_prs3_address_first == physical_alu2_wrb_addr_i) & (physical_alu2_wrb_addr_i != 0) & func_alu2_done_valid_i) begin
+        select_first_rs3_data = physical_alu2_wrb_data_i;
+    end
+    if((preg_prs3_address_first == physical_md_wrb_addr_i) & (physical_md_wrb_addr_i != 0) & func_md_done_valid_i) begin
+        select_first_rs3_data = physical_md_wrb_data_i;
+    end
+    if((preg_prs3_address_first == physical_lsu_wrb_addr_i) & (physical_lsu_wrb_addr_i != 0) & func_lsu_done_valid_i) begin
+        select_first_rs3_data = physical_lsu_wrb_data_i;
+    end
+    if((preg_prs3_address_first == physical_csru_wrb_addr_i) & (physical_csru_wrb_addr_i != 0) & func_csru_done_valid_i) begin
+        select_first_rs3_data = physical_csru_wrb_data_i;
+    end
+end
+always @(*) begin
     select_second_rs1_data = phyreg_second_rs1_data;
     if((preg_prs1_address_second == physical_alu1_wrb_addr_i) & (physical_alu1_wrb_addr_i != 0) & func_alu1_done_valid_i) begin
         select_second_rs1_data = physical_alu1_wrb_data_i;
@@ -638,6 +706,24 @@ always @(*) begin
     end
     if((preg_prs2_address_second == physical_csru_wrb_addr_i) & (physical_csru_wrb_addr_i != 0) & func_csru_done_valid_i) begin
         select_second_rs2_data = physical_csru_wrb_data_i;
+    end
+end
+always @(*) begin
+    select_second_rs3_data = phyreg_second_rs3_data;
+    if((preg_prs3_address_second == physical_alu1_wrb_addr_i) & (physical_alu1_wrb_addr_i != 0) & func_alu1_done_valid_i) begin
+        select_second_rs3_data = physical_alu1_wrb_data_i;
+    end
+    if((preg_prs3_address_second == physical_alu2_wrb_addr_i) & (physical_alu2_wrb_addr_i != 0) & func_alu2_done_valid_i) begin
+        select_second_rs3_data = physical_alu2_wrb_data_i;
+    end
+    if((preg_prs3_address_second == physical_md_wrb_addr_i) & (physical_md_wrb_addr_i != 0) & func_md_done_valid_i) begin
+        select_second_rs3_data = physical_md_wrb_data_i;
+    end
+    if((preg_prs3_address_second == physical_lsu_wrb_addr_i) & (physical_lsu_wrb_addr_i != 0) & func_lsu_done_valid_i) begin
+        select_second_rs3_data = physical_lsu_wrb_data_i;
+    end
+    if((preg_prs3_address_second == physical_csru_wrb_addr_i) & (physical_csru_wrb_addr_i != 0) & func_csru_done_valid_i) begin
+        select_second_rs3_data = physical_csru_wrb_data_i;
     end
 end
 //: physical regfile
@@ -674,7 +760,7 @@ always @(posedge clk) begin
 end
 generate
     for(genvar j = 0; j < PHY_REG_SIZE; j = j + 1) begin
-        assign real_available[j] = available_table[j] & !((prd_first == j) & do_rob_write_first) & !((prd_second == j) & do_rob_write_second) |
+        assign real_available[j] = available_table[j] & !((prd_first == j) & do_rob_write_first) & !((prd_second == j) & do_rob_write_second) | //the available will clear a cycle late after (write rob = 1)
                                    ((physical_alu1_wrb_addr_i == j) & (physical_alu1_wrb_addr_i != 0) & func_alu1_done_valid_i) |
                                    ((physical_alu2_wrb_addr_i == j) & (physical_alu2_wrb_addr_i != 0) & func_alu2_done_valid_i) |
                                    ((physical_md_wrb_addr_i   == j) & (physical_md_wrb_addr_i   != 0) & func_md_done_valid_i  ) |
@@ -688,11 +774,11 @@ endgenerate
 //renaming table
 always @(posedge clk) begin
     if (rst) begin
-        for (i = 0; i < 32; i = i + 1) begin
+        for (i = 0; i < 64; i = i + 1) begin
             rename_reg[i] <= 0;
         end 
     end else if (global_speculate_fault) begin
-        for (i = 0; i < 32; i = i + 1) begin //when trapped replace rename_reg by old one
+        for (i = 0; i < 64; i = i + 1) begin //when trapped replace rename_reg by old one
             rename_reg[i] <= rename_reg_backup[i];
         end
     end else begin 
@@ -711,7 +797,7 @@ end
     
 always @(posedge clk) begin
     if (rst) begin
-        for (i = 0; i < 32; i = i + 1) begin
+        for (i = 0; i < 64; i = i + 1) begin
             rename_reg_backup[i] <= 0;
         end
     end else begin
@@ -729,10 +815,12 @@ end
 // use_rd and uses_csr 
 assign name_prs1_first = rename_reg[rs1_address_first_i]   ;
 assign name_prs2_first = rename_reg[rs2_address_first_i]   ;
+assign name_prs3_first = rename_reg[rs3_address_first_i]   ;
 assign name_lprd_first = rename_reg[rd_address_first_i]    ;
 assign name_prd_first  = free_list_rdata_first              ;
 assign name_prs1_second = rename_reg[rs1_address_second_i]  ;
 assign name_prs2_second = rename_reg[rs2_address_second_i]  ;
+assign name_prs3_second = rename_reg[rs3_address_second_i]  ;
 assign name_lprd_second = rename_reg[rd_address_second_i]   ;
 assign name_prd_second  = free_list_rdata_second            ;
 
@@ -740,6 +828,8 @@ assign prs1_first = uses_rs1_first_i ? name_prs1_first
                                      : 0;
 assign prs2_first = uses_rs2_first_i ? name_prs2_first
                                      : 0;
+assign prs3_first = uses_rs3_first_i ? name_prs3_first
+				     : 0;
 assign prd_first  = free_list_rd_first_en ? name_prd_first
                                           : 0;
 assign lprd_first = uses_rd_first_i ? name_lprd_first
@@ -751,6 +841,9 @@ assign prs1_second = uses_rs1_second_i ? (((rs1_address_second_i == rd_address_f
                                        : 0;
 assign prs2_second = uses_rs2_second_i ? (((rs2_address_second_i == rd_address_first_i) & uses_rd_first_i) ? name_prd_first
                                                                                                            : name_prs2_second)
+                                       : 0;
+assign prs3_second = uses_rs3_second_i ? (((rs3_address_second_i == rd_address_first_i) & uses_rd_first_i) ? name_prd_first
+                                                                                                           : name_prs3_second)
                                        : 0;
 assign lprd_second = uses_rd_second_i ? ((rd_address_second_i == rd_address_first_i) & uses_rd_first_i) ? name_prd_first
                                                                                                         : name_lprd_second
@@ -796,17 +889,23 @@ end
 always @(posedge clk) begin
     if (do_rob_write_first) begin
         rob_op_is_alu[wr_rob_index_first] <= is_alu_first_i;
+	rob_op_is_float[wr_rob_index_first] <= float_first_i;	
+	rob_op_float_op[wr_rob_index_first] <= float_op_first_i;
         rob_op_alu_modify[wr_rob_index_first] <= alu_function_modifier_first_i;
         rob_op_alu_select_a[wr_rob_index_first] <= fu_select_a_first_i;
         rob_op_alu_select_b[wr_rob_index_first] <= fu_select_b_first_i;
+	rob_op_alu_select_c[wr_rob_index_first] <= fu_select_c_first_i;
         rob_op_alu_jump[wr_rob_index_first] <= jump_first_i;
         rob_op_alu_branch[wr_rob_index_first] <= branch_first_i;
     end
     if (do_rob_write_second) begin
         rob_op_is_alu[wr_rob_index_second] <= is_alu_second_i;
+	rob_op_is_float[wr_rob_index_second] <= float_second_i;
+	rob_op_float_op[wr_rob_index_second] <= float_op_second_i;
         rob_op_alu_modify[wr_rob_index_second] <= alu_function_modifier_second_i;
         rob_op_alu_select_a[wr_rob_index_second] <= fu_select_a_second_i;
         rob_op_alu_select_b[wr_rob_index_second] <= fu_select_b_second_i;
+	rob_op_alu_select_c[wr_rob_index_second] <= fu_select_c_second_i;
         rob_op_alu_jump[wr_rob_index_second] <= jump_second_i;
         rob_op_alu_branch[wr_rob_index_second] <= branch_second_i;
     end
@@ -885,6 +984,7 @@ generate
     for (genvar j = 0; j < ROB_SIZE; j = j + 1) begin
         assign rob_select_ready[j] = real_available[rob_prs1[j]] &
                                      real_available[rob_prs2[j]] &
+				     real_available[rob_prs3[j]] &
                                      rob_used[j] &
                                      !rob_selected[j] &
                                      !((rob_op_is_load[j] | rob_op_is_store[j]) & lsuq_almost_full) &        
@@ -899,6 +999,7 @@ generate
 endgenerate
 assign rob_bypass_select_ready[0] = real_available[prs1_first] &
                                     real_available[prs2_first] &
+				    real_available[prs3_first] &
                                     do_rob_write_first &
                                     !((load_first_i | store_first_i) & lsuq_almost_full) &
                                     !(is_mext_first_i & mdq_almost_full) &
@@ -908,6 +1009,7 @@ assign rob_bypass_select_ready[0] = real_available[prs1_first] &
                                     ;
 assign rob_bypass_select_ready[1] = real_available[prs1_second] &
                                     real_available[prs2_second] &
+				    real_available[prs3_second] &
                                     do_rob_write_second &
                                     !((load_second_i | store_second_i) & lsuq_almost_full) &
                                     !(is_mext_second_i & mdq_almost_full) &
@@ -1133,6 +1235,17 @@ always @(posedge clk) begin
 end 
 // : rob prs2
 
+//rob prs3
+always @(posedge clk) begin 
+    if (do_rob_write_first) begin
+        rob_prs3[wr_rob_index_first] <= prs3_first; 
+    end
+    if (do_rob_write_second) begin
+        rob_prs3[wr_rob_index_second] <= prs3_second; 
+    end
+end 
+// : rob prs3
+
 //rob prd
 always @(posedge clk) begin 
     if (do_rob_write_first) begin
@@ -1173,6 +1286,26 @@ always @(posedge clk) begin
     end
 end
 // : rob rd
+
+`ifdef REG_TEST
+reg [PHY_REG_ADDR_WIDTH-1:0] rob_rs2[ROB_SIZE-1:0];
+always @(posedge clk) begin
+    if (do_rob_write_first) begin
+        if (uses_rs2_first_i) begin
+            rob_rs2[wr_rob_index_first] <= rs2_address_first_i;
+        end else begin
+            rob_rs2[wr_rob_index_first] <= 0;
+        end
+    end
+    if (do_rob_write_second) begin
+        if (uses_rs2_second_i) begin
+            rob_rs2[wr_rob_index_second] <= rs2_address_second_i;
+        end else begin
+            rob_rs2[wr_rob_index_second] <= 0;
+        end
+    end
+end
+`endif
 
 //rob FU finish
 always @(posedge clk) begin
@@ -1236,15 +1369,17 @@ assign rcu_lsu_wakeup_index_o = cmt_rob_index_first;
 //: rob wake up
 
 //rob skip gen
-assign do_rob_select_skip_first = exception_first_i | //& !ecause_first_i[EXCEPTION_CAUSE_WIDTH-1] |
+assign do_rob_select_skip_first = (exception_first_i | //& !ecause_first_i[EXCEPTION_CAUSE_WIDTH-1] |
                                   mret_first_i |
                                   sret_first_i |
-                                  wfi_first_i
+                                  wfi_first_i) &
+                                  do_rob_write_first
                                   ;
-assign do_rob_select_skip_second = exception_second_i | //& !ecause_second_i[EXCEPTION_CAUSE_WIDTH-1] |
+assign do_rob_select_skip_second = (exception_second_i | //& !ecause_second_i[EXCEPTION_CAUSE_WIDTH-1] |
                                    mret_second_i |
                                    sret_second_i |
-                                   wfi_second_i
+                                   wfi_second_i) &
+                                   do_rob_write_second
                                    ;
 // : rob skip gen
 
@@ -1285,7 +1420,7 @@ assign wr_rob_index_second = (wr_rob_index == ROB_SIZE - 1) ? 0
 reg [ROB_SIZE-1:0] rob_op_ls;
 always @(*) begin
     for (i = 0; i < ROB_SIZE; i = i + 1) begin
-        rob_op_ls[i] = rob_op_is_store[i] & !rob_selected[i] | rob_op_is_load[i] & !rob_selected[i];
+        rob_op_ls[i] = (rob_op_is_store[i] | rob_op_is_load[i] | rob_op_is_csr[i]) & !rob_selected[i];
     end
 end
 oldest2_abitter_bps_lss #(
@@ -1369,8 +1504,10 @@ always @(*) begin
         select_first_imm            = rob_op_imm_data[rob_select_first_index]        ;
         select_first_select_a       = rob_op_alu_select_a[rob_select_first_index]    ;
         select_first_select_b       = rob_op_alu_select_b[rob_select_first_index]    ;
+	select_first_select_c       = rob_op_alu_select_c[rob_select_first_index]    ;
         preg_prs1_address_first     = rob_prs1[rob_select_first_index]               ;
         preg_prs2_address_first     = rob_prs2[rob_select_first_index]               ;
+	preg_prs3_address_first     = rob_prs3[rob_select_first_index]		     ;
         select_first_is_alu         = rob_op_is_alu[rob_select_first_index]          ;
         select_first_jump           = rob_op_alu_jump[rob_select_first_index]        ;
         select_first_branch         = rob_op_alu_branch[rob_select_first_index]      ;
@@ -1380,8 +1517,10 @@ always @(*) begin
         select_first_md_op          = rob_op_func3[rob_select_first_index]           ;
         select_first_is_load        = rob_op_is_load[rob_select_first_index]         ;
         select_first_is_store       = rob_op_is_store[rob_select_first_index]        ;
+	select_first_is_float       = rob_op_is_float[rob_select_first_index]        ;
         select_first_ld_opcode      = rob_op_ldu_op[rob_select_first_index]          ;
         select_first_st_opcode      = rob_op_stu_op[rob_select_first_index]          ;
+	select_first_float_opcode   = rob_op_float_op[rob_select_first_index]        ;
         select_first_lsu_fence      = rob_op_is_fence[rob_select_first_index]        ;
         select_first_lsu_fence_op   = rob_op_fence_op[rob_select_first_index]        ;
         select_first_aext           = rob_op_aext[rob_select_first_index]            ;
@@ -1401,8 +1540,10 @@ always @(*) begin
         select_first_imm            = rob_op_imm_data[rob_select_second_index]        ;
         select_first_select_a       = rob_op_alu_select_a[rob_select_second_index]    ;
         select_first_select_b       = rob_op_alu_select_b[rob_select_second_index]    ;
+	select_first_select_c	    = rob_op_alu_select_c[rob_select_second_index]    ;
         preg_prs1_address_first     = rob_prs1[rob_select_second_index]               ;
         preg_prs2_address_first     = rob_prs2[rob_select_second_index]               ;
+	preg_prs3_address_first     = rob_prs3[rob_select_second_index]               ;
         select_first_is_alu         = rob_op_is_alu[rob_select_second_index]          ;
         select_first_jump           = rob_op_alu_jump[rob_select_second_index]        ;
         select_first_branch         = rob_op_alu_branch[rob_select_second_index]      ;
@@ -1412,8 +1553,10 @@ always @(*) begin
         select_first_md_op          = rob_op_func3[rob_select_second_index]           ;
         select_first_is_load        = rob_op_is_load[rob_select_second_index]         ;
         select_first_is_store       = rob_op_is_store[rob_select_second_index]        ;
+	select_first_is_float       = rob_op_is_float[rob_select_second_index]	      ;
         select_first_ld_opcode      = rob_op_ldu_op[rob_select_second_index]          ;
         select_first_st_opcode      = rob_op_stu_op[rob_select_second_index]          ;
+	select_first_float_opcode   = rob_op_float_op[rob_select_second_index]        ;
         select_first_lsu_fence      = rob_op_is_fence[rob_select_second_index]        ;
         select_first_lsu_fence_op   = rob_op_fence_op[rob_select_second_index]        ;
         select_first_aext           = rob_op_aext[rob_select_second_index]            ;
@@ -1432,8 +1575,10 @@ always @(*) begin
         select_first_imm            = imm_data_first_i                ;
         select_first_select_a       = fu_select_a_first_i             ;
         select_first_select_b       = fu_select_b_first_i             ;
+	select_first_select_c       = fu_select_c_first_i             ;
         preg_prs1_address_first     = prs1_first                      ;
         preg_prs2_address_first     = prs2_first                      ;
+	preg_prs3_address_first     = prs3_first                      ;
         select_first_is_alu         = is_alu_first_i                  ;
         select_first_jump           = jump_first_i                    ;
         select_first_branch         = branch_first_i                  ;
@@ -1443,8 +1588,10 @@ always @(*) begin
         select_first_md_op          = fu_function_first_i             ;
         select_first_is_load        = load_first_i                    ;
         select_first_is_store       = store_first_i                   ;
+	select_first_is_float       = float_first_i                   ;
         select_first_ld_opcode      = ldu_op_first_i                  ;
         select_first_st_opcode      = stu_op_first_i                  ;
+	select_first_float_opcode   = float_op_first_i                ;
         select_first_lsu_fence      = is_fence_first_i                ;
         select_first_lsu_fence_op   = fence_op_first_i                ;
         select_first_aext           = is_aext_first_i                 ;
@@ -1464,8 +1611,10 @@ always @(*) begin
         select_first_imm            = imm_data_second_i                ;
         select_first_select_a       = fu_select_a_second_i             ;
         select_first_select_b       = fu_select_b_second_i             ;
+	select_first_select_c       = fu_select_c_second_i             ;
         preg_prs1_address_first     = prs1_second                      ;
         preg_prs2_address_first     = prs2_second                      ;
+	preg_prs3_address_first     = prs3_second                      ;
         select_first_is_alu         = is_alu_second_i                  ;
         select_first_jump           = jump_second_i                    ;
         select_first_branch         = branch_second_i                  ;
@@ -1475,8 +1624,10 @@ always @(*) begin
         select_first_md_op          = fu_function_second_i             ;
         select_first_is_load        = load_second_i                    ;
         select_first_is_store       = store_second_i                   ;
+	select_first_is_float       = float_second_i 		       ;
         select_first_ld_opcode      = ldu_op_second_i                  ;
         select_first_st_opcode      = stu_op_second_i                  ;
+	select_first_float_opcode   = float_op_second_i		       ;
         select_first_lsu_fence      = is_fence_second_i                ;
         select_first_lsu_fence_op   = fence_op_second_i                ;
         select_first_aext           = is_aext_second_i                 ;
@@ -1496,8 +1647,10 @@ always @(*) begin
         select_first_imm            = 0;
         select_first_select_a       = 0;
         select_first_select_b       = 0;
+	select_first_select_c       = 0;
         preg_prs1_address_first     = 0;
         preg_prs2_address_first     = 0;
+	preg_prs3_address_first     = 0;
         select_first_is_alu         = 0;
         select_first_jump           = 0;
         select_first_branch         = 0;
@@ -1507,8 +1660,10 @@ always @(*) begin
         select_first_md_op          = 0;
         select_first_is_load        = 0;
         select_first_is_store       = 0;
+	select_first_is_float       = 0;
         select_first_ld_opcode      = 0;
         select_first_st_opcode      = 0;
+	select_first_float_opcode   = 0;
         select_first_lsu_fence      = 0;
         select_first_lsu_fence_op   = 0;
         select_first_aext           = 0;
@@ -1532,8 +1687,10 @@ always @(*) begin
         select_second_imm            = imm_data_second_i                ;
         select_second_select_a       = fu_select_a_second_i             ;
         select_second_select_b       = fu_select_b_second_i             ;
+	select_second_select_c       = fu_select_c_second_i             ;
         preg_prs1_address_second     = prs1_second                      ;
         preg_prs2_address_second     = prs2_second                      ;
+	preg_prs3_address_second     = prs3_second                      ;
         select_second_is_alu         = is_alu_second_i                  ;
         select_second_jump           = jump_second_i                    ;
         select_second_branch         = branch_second_i                  ;
@@ -1543,8 +1700,10 @@ always @(*) begin
         select_second_md_op          = fu_function_second_i             ;
         select_second_is_load        = load_second_i                    ;
         select_second_is_store       = store_second_i                   ;
+	select_second_is_float       = float_second_i                   ;
         select_second_ld_opcode      = ldu_op_second_i                  ;
         select_second_st_opcode      = stu_op_second_i                  ;
+	select_second_float_opcode   = float_op_second_i		;
         select_second_lsu_fence      = is_fence_second_i                ;
         select_second_lsu_fence_op   = fence_op_second_i                ;
         select_second_aext           = is_aext_second_i                 ;
@@ -1560,8 +1719,10 @@ always @(*) begin
         select_second_imm            = imm_data_first_i                ;
         select_second_select_a       = fu_select_a_first_i             ;
         select_second_select_b       = fu_select_b_first_i             ;
+	select_second_select_c       = fu_select_c_first_i             ;
         preg_prs1_address_second     = prs1_first                      ;
         preg_prs2_address_second     = prs2_first                      ;
+	preg_prs3_address_second     = prs3_first                      ;
         select_second_is_alu         = is_alu_first_i                  ;
         select_second_jump           = jump_first_i                    ;
         select_second_branch         = branch_first_i                  ;
@@ -1571,8 +1732,10 @@ always @(*) begin
         select_second_md_op          = fu_function_first_i             ;
         select_second_is_load        = load_first_i                    ;
         select_second_is_store       = store_first_i                   ;
+	select_second_is_float       = float_first_i                   ;
         select_second_ld_opcode      = ldu_op_first_i                  ;
         select_second_st_opcode      = stu_op_first_i                  ;
+	select_second_float_opcode   = float_op_first_i                ;
         select_second_lsu_fence      = is_fence_first_i                ;
         select_second_lsu_fence_op   = fence_op_first_i                ;
         select_second_aext           = is_aext_first_i                 ;
@@ -1588,8 +1751,10 @@ always @(*) begin
         select_second_imm            = rob_op_imm_data[rob_select_second_index]        ;
         select_second_select_a       = rob_op_alu_select_a[rob_select_second_index]    ;
         select_second_select_b       = rob_op_alu_select_b[rob_select_second_index]    ;
+	select_second_select_c       = rob_op_alu_select_c[rob_select_second_index]    ;
         preg_prs1_address_second     = rob_prs1[rob_select_second_index]               ;
         preg_prs2_address_second     = rob_prs2[rob_select_second_index]               ;
+	preg_prs3_address_second     = rob_prs3[rob_select_second_index]               ;
         select_second_is_alu         = rob_op_is_alu[rob_select_second_index]          ;
         select_second_jump           = rob_op_alu_jump[rob_select_second_index]        ;
         select_second_branch         = rob_op_alu_branch[rob_select_second_index]      ;
@@ -1599,8 +1764,10 @@ always @(*) begin
         select_second_md_op          = rob_op_func3[rob_select_second_index]           ;
         select_second_is_load        = rob_op_is_load[rob_select_second_index]         ;
         select_second_is_store       = rob_op_is_store[rob_select_second_index]        ;
+	select_second_is_float       = rob_op_is_float[rob_select_second_index]        ;
         select_second_ld_opcode      = rob_op_ldu_op[rob_select_second_index]          ;
         select_second_st_opcode      = rob_op_stu_op[rob_select_second_index]          ;
+	select_second_float_opcode   = rob_op_float_op[rob_select_second_index]        ;
         select_second_lsu_fence      = rob_op_is_fence[rob_select_second_index]        ;
         select_second_lsu_fence_op   = rob_op_fence_op[rob_select_second_index]        ;
         select_second_aext           = rob_op_aext[rob_select_second_index]            ;
@@ -1616,8 +1783,10 @@ always @(*) begin
         select_second_imm            = rob_op_imm_data[rob_select_first_index]        ;
         select_second_select_a       = rob_op_alu_select_a[rob_select_first_index]    ;
         select_second_select_b       = rob_op_alu_select_b[rob_select_first_index]    ;
+	select_second_select_c       = rob_op_alu_select_c[rob_select_first_index]    ;
         preg_prs1_address_second     = rob_prs1[rob_select_first_index]               ;
         preg_prs2_address_second     = rob_prs2[rob_select_first_index]               ;
+	preg_prs3_address_second     = rob_prs3[rob_select_first_index]		      ;
         select_second_is_alu         = rob_op_is_alu[rob_select_first_index]          ;
         select_second_jump           = rob_op_alu_jump[rob_select_first_index]        ;
         select_second_branch         = rob_op_alu_branch[rob_select_first_index]      ;
@@ -1627,8 +1796,10 @@ always @(*) begin
         select_second_md_op          = rob_op_func3[rob_select_first_index]           ;
         select_second_is_load        = rob_op_is_load[rob_select_first_index]         ;
         select_second_is_store       = rob_op_is_store[rob_select_first_index]        ;
+	select_second_is_float       = rob_op_is_float[rob_select_first_index]        ;
         select_second_ld_opcode      = rob_op_ldu_op[rob_select_first_index]          ;
         select_second_st_opcode      = rob_op_stu_op[rob_select_first_index]          ;
+	select_second_float_opcode   = rob_op_float_op[rob_select_first_index]        ;
         select_second_lsu_fence      = rob_op_is_fence[rob_select_first_index]        ;
         select_second_lsu_fence_op   = rob_op_fence_op[rob_select_first_index]        ;
         select_second_aext           = rob_op_aext[rob_select_first_index]            ;
@@ -1644,8 +1815,10 @@ always @(*) begin
         select_second_imm            = 0;
         select_second_select_a       = 0;
         select_second_select_b       = 0;
+	select_second_select_c       = 0;
         preg_prs1_address_second     = 0;
         preg_prs2_address_second     = 0;
+	preg_prs3_address_second     = 0;
         select_second_is_alu         = 0;
         select_second_jump           = 0;
         select_second_branch         = 0;
@@ -1655,8 +1828,10 @@ always @(*) begin
         select_second_md_op          = 0;
         select_second_is_load        = 0;
         select_second_is_store       = 0;
+	select_second_is_float       = 0;
         select_second_ld_opcode      = 0;
         select_second_st_opcode      = 0;
+	select_second_float_opcode   = 0;
         select_second_lsu_fence      = 0;
         select_second_lsu_fence_op   = 0;
         select_second_aext           = 0;
@@ -1681,8 +1856,10 @@ always @(posedge clk) begin
         alu1_imm           <= select_first_imm               ;       
         alu1_select_a      <= select_first_select_a          ;                                     
         alu1_select_b      <= select_first_select_b          ;                   
+	alu1_select_c      <= select_first_select_c          ;
         alu1_rs1_data      <= select_first_rs1_data          ;                                                                   
         alu1_rs2_data      <= select_first_rs2_data          ;                                                                 
+	alu1_rs3_data      <= select_first_rs3_data          ;
         alu1_jump          <= select_first_jump              ;               
         alu1_branch        <= select_first_branch            ;                 
         alu1_half          <= select_first_half              ;               
@@ -1699,8 +1876,13 @@ assign rcu_alu1_predict_pc_o    = alu1_predict_pc      ;
 assign rcu_alu1_imm_data_o      = alu1_imm             ;
 assign rcu_alu1_select_a_o      = alu1_select_a        ;
 assign rcu_alu1_select_b_o      = alu1_select_b        ;
+assign rcu_alu1_select_c_o      = alu1_select_c        ;
 assign rcu_alu1_rs1_data_o      = alu1_rs1_data        ;
 assign rcu_alu1_rs2_data_o      = alu1_rs2_data        ;
+assign rcu_alu1_rs3_data_o      = alu1_rs3_data        ;
+assign rcu_alu1_is_float_instruction_o = float_first_i ;
+assign rcu_alu1_roundingMode_o = float_roundingMode_first_i;
+assign rcu_alu1_ftype_o = float_op_first_i             ;
 assign rcu_alu1_jump_o          = alu1_jump            ;
 assign rcu_alu1_branch_o        = alu1_branch          ;
 assign rcu_alu1_half_o          = alu1_half            ;
@@ -1720,8 +1902,10 @@ always @(posedge clk) begin
         alu2_imm           <= select_second_imm              ;               
         alu2_select_a      <= select_second_select_a         ;        
         alu2_select_b      <= select_second_select_b         ;        
+	alu2_select_c      <= select_second_select_c         ;
         alu2_rs1_data      <= select_second_rs1_data         ;        
         alu2_rs2_data      <= select_second_rs2_data         ;        
+	alu2_rs3_data      <= select_second_rs3_data         ;
         alu2_jump          <= select_second_jump             ;        
         alu2_branch        <= select_second_branch           ;        
         alu2_half          <= select_second_half             ;        
@@ -1738,8 +1922,13 @@ assign rcu_alu2_predict_pc_o    = alu2_predict_pc      ;
 assign rcu_alu2_imm_data_o      = alu2_imm             ;
 assign rcu_alu2_select_a_o      = alu2_select_a        ;
 assign rcu_alu2_select_b_o      = alu2_select_b        ;
+assign rcu_alu2_select_c_o      = alu2_select_c        ;
 assign rcu_alu2_rs1_data_o      = alu2_rs1_data        ;
 assign rcu_alu2_rs2_data_o      = alu2_rs2_data        ;
+assign rcu_alu2_rs3_data_o      = alu2_rs3_data        ;
+assign rcu_alu2_is_float_instruction_o = float_second_i;
+assign rcu_alu2_roundingMode_o  = float_roundingMode_second_i;
+assign rcu_alu2_ftype_o         = float_op_second_i    ;
 assign rcu_alu2_jump_o          = alu2_jump            ;
 assign rcu_alu2_branch_o        = alu2_branch          ;
 assign rcu_alu2_half_o          = alu2_half            ;
@@ -1779,14 +1968,20 @@ assign mdq_do_wdata_first = {select_first_rob_index,
                            select_first_rs1_data,
                            select_first_rs2_data,
                            select_first_func3,
-                           select_first_half
+                           select_first_half,
+			   float_first_i,
+			   float_op_first_i,
+			   float_roundingMode_first_i
                            };
 assign mdq_do_wdata_second = {select_second_rob_index,
                             select_second_prd_address,
                             select_second_rs1_data,
                             select_second_rs2_data,
                             select_second_func3,
-                            select_second_half
+                            select_second_half,
+			    float_second_i,
+			    float_op_first_i,
+			    float_roundingMode_second_i
                             };
 assign mdq_wrdata_first = mdq_do_first_write ? mdq_do_wdata_first : mdq_do_wdata_second;
 assign mdq_wrdata_second = mdq_wr_second_en ? mdq_do_wdata_second : 0;
@@ -1863,6 +2058,42 @@ assign lsuq_rd_first_en = lsuq_do_first_read & !lsuq_empty;
 assign lsuq_rd_second_en = 1'b0;
 assign rcu_lsu_package_o = lsuq_rdata_first;
 //: lsu queue
+
+`ifdef REG_TEST
+reg [XLEN-1:0] rob_test_st_data[ROB_SIZE-1:0];
+reg [XLEN-1:0] rob_test_st_addr[ROB_SIZE-1:0];
+
+always @(posedge clk) begin
+    if (compress_select_first_valid & select_first_is_store) begin
+        case(rob_op_stu_op[select_first_rob_index])
+            STU_SB:
+                rob_test_st_data[select_first_rob_index] <= {56'b0,select_first_rs2_data[7:0]};
+            STU_SH:
+                rob_test_st_data[select_first_rob_index] <= {48'b0,select_first_rs2_data[15:0]};
+            STU_SW:
+                rob_test_st_data[select_first_rob_index] <= {32'b0,select_first_rs2_data[31:0]};
+            STU_SD:
+                rob_test_st_data[select_first_rob_index] <= select_first_rs2_data;
+        endcase
+        rob_test_st_addr[select_first_rob_index] <= select_first_rs1_data + {{32{select_first_imm[31]}},select_first_imm};
+    end
+    if (compress_select_second_valid & select_second_is_store) begin
+        rob_test_st_data[select_second_rob_index] <= select_second_rs2_data;
+        rob_test_st_addr[select_second_rob_index] <= select_second_rs1_data + {{32{select_second_imm[31]}},select_second_imm};
+    end
+end
+
+wire test_cmt_is_st_first = rob_op_is_store[cmt_rob_index_first] & !rob_op_is_fence[cmt_rob_index_first];
+wire [PHY_REG_ADDR_WIDTH-1:0] test_cmt_st_source_first = rob_rs2[cmt_rob_index_first];
+wire [XLEN-1:0] test_cmt_st_data_first = rob_test_st_data[cmt_rob_index_first];
+wire [XLEN-1:0] rob_test_st_addr_first = rob_test_st_addr[cmt_rob_index_first];
+
+wire test_cmt_is_st_second = rob_op_is_store[cmt_rob_index_second] & !rob_op_is_fence[cmt_rob_index_second];
+wire [PHY_REG_ADDR_WIDTH-1:0] test_cmt_st_source_second = rob_rs2[cmt_rob_index_second];
+wire [XLEN-1:0] test_cmt_st_data_second = rob_test_st_data[cmt_rob_index_second];
+wire [XLEN-1:0] rob_test_st_addr_second = rob_test_st_addr[cmt_rob_index_second];
+`endif
+
 
 //csru pipeline reg
 always @ (posedge clk) begin

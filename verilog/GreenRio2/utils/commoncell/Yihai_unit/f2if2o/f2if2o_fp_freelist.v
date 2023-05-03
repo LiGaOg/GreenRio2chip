@@ -1,4 +1,4 @@
-module f2if2o_freelist #( //fifo for probable two input and probable two output
+module f2if2o_fp_freelist #( //fifo for probable two input and probable two output
     parameter FIFO_DATA_WIDTH = 5,
     parameter FIFO_SIZE = 32 - 1, //for freelist there is no p0
     parameter FIFO_SIZE_WIDTH = 5
@@ -48,7 +48,7 @@ module f2if2o_freelist #( //fifo for probable two input and probable two output
     always @(posedge clk) begin            
         if (rst) begin
             for (i = 0; i < FIFO_SIZE ; i = i + 1) begin
-                fifo_queue[i] <= i + 1;
+                fifo_queue[i] <= i + 1 + FIFO_SIZE;
             end
         end else if (wr_first_en_i & wr_second_en_i) begin
             fifo_queue[wr_line] <= wdata_first_i;
