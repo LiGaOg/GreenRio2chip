@@ -46,9 +46,11 @@ set ::env(VERILOG_FILES) "\
     $::env(DESIGN_DIR)/../lsuv1/lsuv1.v \
     $::env(DESIGN_DIR)/../csr/csr.sv \
     $::env(DESIGN_DIR)/alu.v \
+    $::env(DESIGN_DIR)/falu.v \
     $::env(DESIGN_DIR)/div.v \
     $::env(DESIGN_DIR)/lowRisc_mul_fast.v \
     $::env(DESIGN_DIR)/md.v \
+    $::env(DESIGN_DIR)/fdivsqrt.v \
     $::env(DESIGN_DIR)/fu.v 
 	"
 set ::env(SDC_FILE) $::env(DESIGN_DIR)/base.sdc
