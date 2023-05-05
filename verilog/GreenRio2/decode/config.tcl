@@ -15,12 +15,12 @@ set ::env(RUN_SPEF_EXTRACTION) 0
 set script_dir $::env(DESIGN_DIR)
 set ::env(VERILOG_FILES) "\
 	$::env(DESIGN_DIR)/../params.vh \
-    $::env(DESIGN_DIR)/rvc_decoder.v \
-    $::env(DESIGN_DIR)/rv_fdecoder.v \
-    $::env(DESIGN_DIR)/rv_decoder.v \
-    $::env(DESIGN_DIR)/../rcu/unit/counter/configurable_counter.v \
-    $::env(DESIGN_DIR)/../rcu/unit/f2if2o/f2if2o.v \
-    $::env(DESIGN_DIR)/decode.v
+	$::env(DESIGN_DIR)/rvc_decoder.v \
+	$::env(DESIGN_DIR)/rv_fdecoder.v \
+	$::env(DESIGN_DIR)/rv_decoder.v \
+	$::env(DESIGN_DIR)/../rcu/unit/counter/configurable_counter.v \
+	$::env(DESIGN_DIR)/../rcu/unit/f2if2o/f2if2o.v \
+	$::env(DESIGN_DIR)/decode.v
 	"
 set ::env(SDC_FILE) $::env(DESIGN_DIR)/base.sdc
 set ::env(LEC_ENABLE) 0
