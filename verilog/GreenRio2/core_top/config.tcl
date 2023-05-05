@@ -51,6 +51,7 @@ set ::env(VERILOG_FILES) "\
     $::env(DESIGN_DIR)/../rcu/unit/counter/configurable_counter.v \
     $::env(DESIGN_DIR)/../rcu/unit/f2if2o/f2if2o.v \
 	  $::env(DESIGN_DIR)/../decode/rvc_decoder.v \
+    $::env(DESIGN_DIR)/../decode/rv_fdecoder.v \
     $::env(DESIGN_DIR)/../decode/rv_decoder.v \
     $::env(DESIGN_DIR)/../decode/decode.v \
 	  $::env(DESIGN_DIR)/../csr/excep_ctrl.v \
