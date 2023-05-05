@@ -81,6 +81,25 @@ set ::env(VERILOG_FILES) "\
     $::env(DESIGN_DIR)/../utils/commoncell/src/StdDFF/hw/DFFE.v \
     $::env(DESIGN_DIR)/../utils/commoncell/src/StdDFF/hw/DFFR.v \
     $::env(DESIGN_DIR)/../utils/commoncell/src/StdDFF/hw/DFFRE.sv \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/addRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/compareRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/divSqrtRecFN_small.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fNToRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/HardFloat_primitives.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/HardFloat_rawFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/HardFloat_specialize.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/iNToRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/isSigNaNRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/mulAddRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/mulRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/recFNToFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/recFNToIN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/recFNToRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fclassifier.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fdclassifier.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fonecycle.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fdsq.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fddsq.v \
     $::env(DESIGN_DIR)/../rcu/unit/oldest2_abitter/arbiter_base.v \
     $::env(DESIGN_DIR)/../lsuv1/lsu_agu.v \
     $::env(DESIGN_DIR)/../lsuv1/lsu_bus_ctrl.v \
@@ -93,6 +112,8 @@ set ::env(VERILOG_FILES) "\
     $::env(DESIGN_DIR)/../csr/csr.sv \
     $::env(DESIGN_DIR)/../fu/alu.v \
     $::env(DESIGN_DIR)/../fu/div.v \
+    $::env(DESIGN_DIR)/../fu/falu.v \
+    $::env(DESIGN_DIR)/../fu/fdivsqrt.v \
     $::env(DESIGN_DIR)/../fu/lowRisc_mul_fast.v \
     $::env(DESIGN_DIR)/../fu/md.v \
     $::env(DESIGN_DIR)/../fu/fu.v \
@@ -105,8 +126,10 @@ set ::env(VERILOG_FILES) "\
     $::env(DESIGN_DIR)/../rvh_mmu_v/rvh_mmu_mshr.v \
     $::env(DESIGN_DIR)/../rvh_mmu_v/rvh_mmu.v \
     $::env(DESIGN_DIR)/../rvh_mmu_v/rvh_monolithic_mmu.v \
-	  $::env(DESIGN_DIR)/../rcu/unit/physical_regfile/physical_regfile.sv \
+    $::env(DESIGN_DIR)/../rcu/unit/physical_regfile/physical_regfile.sv \
+    $::env(DESIGN_DIR)/../rcu/unit/physical_regfile/fp_physical_regfile.sv \
     $::env(DESIGN_DIR)/../rcu/unit/f2if2o/f2if2o_freelist.v \
+    $::env(DESIGN_DIR)/../rcu/unit/f2if2o/f2if2o_fp_freelist.v \
     $::env(DESIGN_DIR)/../rcu/unit/oldest2_abitter_bps/oldest2_abitter_bps.v \
     $::env(DESIGN_DIR)/../rcu/unit/oldest2_abitter_bps_lss/oldest2_abitter_bps_lss.v \
     $::env(DESIGN_DIR)/../rcu/rcu.sv \
