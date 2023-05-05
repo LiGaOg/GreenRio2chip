@@ -11,7 +11,10 @@ set ::env(PL_RESIZER_TIMING_OPTIMIZATIONS) 0
 set ::env(GLB_RESIZER_TIMING_OPTIMIZATIONS) 0
 set ::env(GRT_ALLOW_CONGESTION) 0
 set script_dir $::env(DESIGN_DIR)
-set ::env(VERILOG_FILES)  "$::env(DESIGN_DIR)/../rcu/unit/physical_regfile/physical_regfile.sv"
+set ::env(VERILOG_FILES)  
+	"$::env(DESIGN_DIR)/../rcu/unit/physical_regfile/physical_regfile.sv\
+	 $::env(DESIGN_DIR)/../rcu/unit/physical_regfile/fp_physical_regfile.sv
+ 	"
 set ::env(SDC_FILE) $::env(DESIGN_DIR)/base.sdc
 set ::env(LEC_ENABLE) 0
 set ::env(RUN_CVC) 0

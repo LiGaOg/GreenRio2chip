@@ -35,6 +35,25 @@ set ::env(VERILOG_FILES) "\
     $::env(DESIGN_DIR)/../utils/commoncell/src/StdDFF/hw/DFFE.v \
     $::env(DESIGN_DIR)/../utils/commoncell/src/StdDFF/hw/DFFR.v \
     $::env(DESIGN_DIR)/../utils/commoncell/src/StdDFF/hw/DFFRE.sv \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/addRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/compareRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/divSqrtRecFN_small.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fNToRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/HardFloat_primitives.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/HardFloat_rawFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/HardFloat_specialize.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/iNToRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/isSigNaNRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/mulAddRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/mulRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/recFNToFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/recFNToIN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/recFNToRecFN.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fclassifier.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fdclassifier.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fonecycle.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fdsq.v \
+    $::env(DESIGN_DIR)/../utils/commoncell/src/FPU/fddsq.v \
     $::env(DESIGN_DIR)/../rcu/unit/oldest2_abitter/arbiter_base.v \
     $::env(DESIGN_DIR)/../lsuv1/lsu_agu.v \
     $::env(DESIGN_DIR)/../lsuv1/lsu_bus_ctrl.v \

@@ -19,6 +19,7 @@ set ::env(VERILOG_FILES) "\
     $::env(DESIGN_DIR)/unit/fifo/fifo_for_freelist.v \
     $::env(DESIGN_DIR)/unit/f2if2o/f2if2o.v \
     $::env(DESIGN_DIR)/unit/f2if2o/f2if2o_freelist.v \
+    $::env(DESIGN_DIR)/unit/f2if2o/f2if2o_fp_freelist.v \
     $::env(DESIGN_DIR)/unit/oldest2_abitter_bps/oldest2_abitter_bps.v \
     $::env(DESIGN_DIR)/unit/oldest2_abitter_bps_lss/oldest2_abitter_bps_lss.v \
     $::env(DESIGN_DIR)/rcu.sv
