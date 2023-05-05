@@ -1,18 +1,18 @@
 /* `include "../../../../params.vh" */
 
-module fclassifier(
-	input [31:0] frs,
-	output [31:0] class_res
+module fdclassifier(
+	input [63:0] frs,
+	output [63:0] class_res
 );
 
 /* Get sign, exponent and fraction */
 wire sign;
-wire [7 : 0] exponent;
-wire [22 : 0] fraction;
+wire [10 : 0] exponent;
+wire [51 : 0] fraction;
 
-assign sign = frs[31];
-assign exponent = frs[30 : 23];
-assign fraction = frs[22 : 0];
+assign sign = frs[63];
+assign exponent = frs[62 : 52];
+assign fraction = frs[51 : 0];
 
 /* class_res variables */
 reg neg_infinity;
@@ -28,7 +28,7 @@ reg quiet_NaN;
 
 /* negative infinity */
 always @ (*) begin
-	if (sign == 1'b1 && exponent == 8'b1111_1111 && fraction == 0)
+	if (sign == 1'b1 && exponent == 11'b1111_1111_111 && fraction == 0)
 		neg_infinity = 1;
 	else
 		neg_infinity = 0;
@@ -36,7 +36,7 @@ end
 
 /* negative normal number */
 always @ (*) begin
-	if (sign == 1'b1 && exponent != 0 && exponent != 8'b1111_1111)
+	if (sign == 1'b1 && exponent != 0 && exponent != 11'b1111_1111_111)
 		neg_normal_number = 1;
 	else
 		neg_normal_number = 0;
@@ -78,7 +78,7 @@ end
 
 /* positive normal number */
 always @ (*) begin
-	if (sign == 1'b0 && exponent != 0 && exponent != 8'b1111_1111)
+	if (sign == 1'b0 && exponent != 0 && exponent != 11'b1111_1111_111)
 		pos_normal_number = 1;
 	else
 		pos_normal_number = 0;
@@ -86,7 +86,7 @@ end
 
 /* positive infinity */
 always @ (*) begin
-	if (sign == 1'b0 && exponent == 8'b1111_1111 && fraction == 0)
+	if (sign == 1'b0 && exponent == 11'b1111_1111_111 && fraction == 0)
 		pos_infinity = 1;
 	else
 		pos_infinity = 0;
@@ -94,8 +94,8 @@ end
 
 /* signaling_NaN and quiet_NaN */
 always @ (*) begin
-	if (exponent == 8'b1111_1111 && fraction != 0) begin
-		if (fraction[22] == 1'b0) begin
+	if (exponent == 11'b1111_1111_111 && fraction != 0) begin
+		if (fraction[51] == 1'b0) begin
 			signaling_NaN = 1;
 			quiet_NaN = 0;
 		end
@@ -111,7 +111,7 @@ always @ (*) begin
 end
 
 assign class_res = {
-	23'b0,
+	55'b0,
 	quiet_NaN,
 	signaling_NaN,
 	pos_infinity,
