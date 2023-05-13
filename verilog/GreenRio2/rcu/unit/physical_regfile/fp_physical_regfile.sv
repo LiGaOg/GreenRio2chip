@@ -1,6 +1,6 @@
 module fp_physical_regfile #(
-    parameter REG_SIZE = 128,
-    parameter REG_SIZE_WIDTH = 7
+    parameter REG_SIZE = 36,
+    parameter REG_SIZE_WIDTH = 6
 )
 (
     input clk,
@@ -45,6 +45,35 @@ module fp_physical_regfile #(
     reg [63:0] registers [REG_SIZE-1:0];
     integer i;
     //P0 is always 0 and its finish bit is 1
+    MultiWrite#(
+	    .REG_ADDR_WIDTH(REG_SIZE_WIDTH),
+	    .REG_DATA_WIDTH(64)
+	    ) fp_multiwrite(
+		    .wr1_valid(falu1_rcu_resp_valid_i),
+		    .wr1_address(falu1_wrb_address_i),
+		    .wr1_data(falu1_wrb_data_i),
+		    .wr2_valid(falu2_rcu_resp_valid_i),
+		    .wr2_address(falu2_wrb_address_i),
+		    .wr2_data(falu2_wrb_data_i),
+		    .wr3_valid(lsu_rcu_resp_valid_i),
+		    .wr3_address(lsu_wrb_address_i)
+		    .wr3_data(lsu_wrb_data_i),
+		    .wr4_valid(fdivsqrt_rcu_resp_valid_i),
+		    .wr4_address(fdivsqrt_wrb_address_i),
+		    .wr4_data(fdivsqrt_wrb_data_i),
+		    .wr5_valid(0),
+		    .wr5_address(0),
+		    .wr5_data(0),
+		    .wr6_valid(0),
+		    .wr6_address(0),
+		    .wr6_data(0),
+		    .wr_first_valid(wr_first_valid),
+		    .wr_first_address(wr_first_address),
+		    .wr_first_data(wr_first_data),
+		    .wr_second_valid(wr_second_valid),
+		    .wr_second_address(wr_second_address),
+		    .wr_second_data(wr_second_data)
+    );
 
     //reg read
     always @(*) begin
@@ -63,17 +92,11 @@ module fp_physical_regfile #(
                 registers[i] <= 0;
             end
         end else begin
-            if (falu1_rcu_resp_valid_i & falu1_rcu_resp_float_i) begin
-                registers[falu1_wrb_address_i] <= (falu1_wrb_address_i == '0)? 64'b0 : falu1_wrb_data_i;
+            if (wr_first_valid) begin
+                registers[wr_first_address] <= (wr_first_address == '0)? 64'b0 : wr_first_data;
             end
-            if (falu2_rcu_resp_valid_i & falu2_rcu_resp_float_i) begin
-                registers[falu2_wrb_address_i] <= (falu2_wrb_address_i == '0)? 64'b0 : falu2_wrb_data_i;
-            end
-            if (lsu_rcu_resp_valid_i & lsu_rcu_resp_float_i) begin
-                registers[lsu_wrb_address_i] <= (lsu_wrb_address_i == '0)? 64'b0 : lsu_wrb_data_i;
-            end
-            if (fdivsqrt_rcu_resp_valid_i) begin
-                registers[fdivsqrt_wrb_address_i] <= (fdivsqrt_wrb_address_i == '0)? 64'b0 : fdivsqrt_wrb_data_i;
+            if (wr_second_valid) begin
+                registers[wr_second_address] <= (wr_second_address == '0)? 64'b0 : wr_second_data;
             end
         end
     end

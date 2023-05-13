@@ -1,6 +1,6 @@
 module physical_regfile #(
-    parameter REG_SIZE = 128,
-    parameter REG_SIZE_WIDTH = 7
+    parameter REG_SIZE = 36,
+    parameter REG_SIZE_WIDTH = 6
 )
 (
     input clk,
@@ -51,6 +51,43 @@ module physical_regfile #(
     reg [63:0] registers [REG_SIZE-1:0];
     integer i;
     //P0 is always 0 and its finish bit is 1
+    wire wr_first_valid;
+    wire [REG_SIZE_WIDTH - 1 : 0] wr_first_address;
+    wire [63:0] wr_first_data;
+
+    wire wr_second_valid;
+    wire [REG_SIZE_WIDTH - 1 : 0] wr_second_address;
+    wire [63:0] wr_second_data;
+
+    MultiWrite#(
+	    .REG_ADDR_WIDTH(REG_SIZE_WIDTH),
+	    .REG_DATA_WIDTH(64)
+	    ) int_multiwrite(
+		    .wr1_valid(alu1_rcu_resp_valid_i),
+		    .wr1_address(alu1_wrb_address_i),
+		    .wr1_data(alu1_wrb_data_i),
+		    .wr2_valid(alu2_rcu_resp_valid_i),
+		    .wr2_address(alu2_wrb_address_i),
+		    .wr2_data(alu2_wrb_data_i),
+		    .wr3_valid(falu1_rcu_resp_valid_i),
+		    .wr3_address(falu1_wrb_address_i)
+		    .wr3_data(falu1_wrb_data_i),
+		    .wr4_valid(falu2_rcu_resp_valid_i),
+		    .wr4_address(falu2_wrb_address_i),
+		    .wr4_data(falu2_wrb_data_i),
+		    .wr5_valid(lsu_rcu_resp_valid_i),
+		    .wr5_address(lsu_wrb_address_i),
+		    .wr5_data(lsu_wrb_data_i),
+		    .wr6_valid(md_rcu_resp_valid_i),
+		    .wr6_address(md_wrb_address_i),
+		    .wr6_data(md_wrb_data_i),
+		    .wr_first_valid(wr_first_valid),
+		    .wr_first_address(wr_first_address),
+		    .wr_first_data(wr_first_data),
+		    .wr_second_valid(wr_second_valid),
+		    .wr_second_address(wr_second_address),
+		    .wr_second_data(wr_second_data)
+    );
 
     //reg read
     always @(*) begin
@@ -69,23 +106,11 @@ module physical_regfile #(
                 registers[i] <= 0;
             end
         end else begin
-            if (alu1_rcu_resp_valid_i) begin
-                registers[alu1_wrb_address_i] <= (alu1_wrb_address_i == '0)? 64'b0 : alu1_wrb_data_i;
+            if (wr_first_valid) begin
+                registers[wr_first_address] <= (wr_first_address == '0)? 64'b0 : wr_first_data;
             end
-            if (alu2_rcu_resp_valid_i) begin
-                registers[alu2_wrb_address_i] <= (alu2_wrb_address_i == '0)? 64'b0 : alu2_wrb_data_i;
-            end
-            if (falu1_rcu_resp_valid_i & !falu1_rcu_resp_float_i) begin
-                registers[falu1_wrb_address_i] <= (falu1_wrb_address_i == '0)? 64'b0 : falu1_wrb_data_i;
-            end
-            if (falu2_rcu_resp_valid_i & !falu2_rcu_resp_float_i) begin
-                registers[falu2_wrb_address_i] <= (falu2_wrb_address_i == '0)? 64'b0 : falu2_wrb_data_i;
-            end
-            if (lsu_rcu_resp_valid_i & !lsu_rcu_resp_float_i) begin
-                registers[lsu_wrb_address_i] <= (lsu_wrb_address_i == '0)? 64'b0 : lsu_wrb_data_i;
-            end
-            if (md_rcu_resp_valid_i) begin
-                registers[md_wrb_address_i] <= (md_wrb_address_i == '0)? 64'b0 : md_wrb_data_i;
+            if (wr_second_valid) begin
+                registers[wr_second_address] <= (wr_second_address == '0)? 64'b0 : wr_second_data;
             end
         end
     end
