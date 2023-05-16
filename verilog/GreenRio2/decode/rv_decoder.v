@@ -1,7 +1,7 @@
 `ifndef RV_DECODER_V
 `define RV_DECODER_V
-`ifdef VERILATOR
-`include "params.vh"
+`ifndef SYNTHESIS
+`include "../params.vh"
 `endif
 
 module rv_decoder (
@@ -22,6 +22,7 @@ module rv_decoder (
 
     output reg uses_rs1_o,
     output reg uses_rs2_o,
+    output reg uses_rs3_o,
     output reg uses_rd_o,
     output reg uses_csr_o,
     output reg [PC_WIDTH-1:0] pc_o,
@@ -29,6 +30,7 @@ module rv_decoder (
     output reg [PC_WIDTH-1:0] predicted_pc_o,
     output reg [VIR_REG_ADDR_WIDTH-1:0] rs1_address_o,
     output reg [VIR_REG_ADDR_WIDTH-1:0] rs2_address_o,
+    output reg [VIR_REG_ADDR_WIDTH-1:0] rs3_address_o,
     output reg [VIR_REG_ADDR_WIDTH-1:0] rd_address_o,
     output reg [CSR_ADDR_LEN-1:0] csr_address_o,
     output reg mret_o,
@@ -49,16 +51,63 @@ module rv_decoder (
     output reg alu_function_modifier_o,
     output reg [1:0] fu_select_a_o,
     output reg [1:0] fu_select_b_o,
+    output reg [1:0] fu_select_c_o,
     output reg jump_o,
     output reg branch_o,
     output reg is_alu_o,
     output reg load_o,
     output reg store_o,
+    output reg float_o,
+    output reg [2:0] float_roundingMode_o,
     output reg [LDU_OP_WIDTH-1:0] ldu_op_o,
     output reg [STU_OP_WIDTH-1:0] stu_op_o,
+    output reg [FLOAT_OP_WIDTH-1:0] float_op_o,
     output reg aq_o,
     output reg rl_o
 );
+
+/* --------------- F extension --------------- */
+
+wire is_float_instruction;
+wire f_uses_rs1;
+wire f_uses_rs2;
+wire f_uses_rs3;
+wire f_uses_rd;
+wire [VIR_REG_ADDR_WIDTH - 1 : 0] f_rs1_address;
+wire [VIR_REG_ADDR_WIDTH - 1 : 0] f_rs2_address;
+wire [VIR_REG_ADDR_WIDTH - 1 : 0] f_rs3_address;
+wire [VIR_REG_ADDR_WIDTH - 1 : 0] f_rd_address;
+wire [31 : 0] f_immediate;
+wire [4 : 0] f_fu_function;
+wire [1 : 0] f_fu_select_a;
+wire [1 : 0] f_fu_select_b;
+wire [1 : 0] f_fu_select_c;
+wire f_load_w;
+wire f_store_w;
+wire [2:0] roundingMode;
+
+rv_fdecoder fdecoder(
+	.instruction(rv_inst_i),
+	.is_float_instruction(is_float_instruction),
+	.f_uses_rs1_o(f_uses_rs1),
+	.f_uses_rs2_o(f_uses_rs2),
+	.f_uses_rs3_o(f_uses_rs3),
+	.f_uses_rd_o(f_uses_rd),
+	.f_rs1_address_o(f_rs1_address),
+	.f_rs2_address_o(f_rs2_address),
+	.f_rs3_address_o(f_rs3_address),
+	.f_rd_address_o(f_rd_address),
+	.f_immediate_o(f_immediate),
+	.f_fu_function_o(f_fu_function),
+	.f_fu_select_a_o(f_fu_select_a),
+	.f_fu_select_b_o(f_fu_select_b),
+	.f_fu_select_c_o(f_fu_select_c),
+	.roundingMode(roundingMode)
+);
+assign float_o = is_float_instruction;
+assign f_load_w = is_float_instruction && (f_fu_function == 28);
+assign f_store_w = is_float_instruction && (f_fu_function == 29);
+/* ------------------------------------------- */
 
 wire [31:0] instr = rv_inst_i;
 wire [4:0] rs1_address = instr[19:15];
@@ -139,11 +188,13 @@ always @(*) begin
 end
 
 always @(*) begin
-    uses_rs1_o = uses_rs1_w; 
-    uses_rs2_o = uses_rs2_w;
+    uses_rs1_o = is_float_instruction ? f_uses_rs1 : uses_rs1_w; 
+    uses_rs2_o = is_float_instruction ? f_uses_rs2 : uses_rs2_w;
+    uses_rs3_o = is_float_instruction ? f_uses_rs3 : 0;
     uses_csr_o = uses_csr_w;
-    rs1_address_o = rs1_address;
-    rs2_address_o = rs2_address;
+    rs1_address_o = is_float_instruction ? f_rs1_address : rs1_address;
+    rs2_address_o = is_float_instruction ? f_rs2_address : rs2_address;
+    rs3_address_o = is_float_instruction ? f_rs3_address : 0;
 end
 
 // possible immediate values
@@ -648,21 +699,23 @@ always @(*) begin
     pc_o = pc_w;
     next_pc_o = next_pc_w;
     predicted_pc_o = predicted_pc_w;
-    imm_data_o = imm_data_w;
+    imm_data_o = is_float_instruction ? f_immediate : imm_data_w;
     csr_address_o = csr_address_w;
     fu_function_o = fu_function_w;
     alu_function_modifier_o = alu_function_modifier_w;
-    fu_select_a_o = fu_select_a_w;
-    fu_select_b_o = fu_select_b_w;
+    fu_select_a_o = is_float_instruction ? f_fu_select_a : fu_select_a_w;
+    fu_select_b_o = is_float_instruction ? f_fu_select_b : fu_select_b_w;
+    fu_select_c_o = is_float_instruction ? f_fu_select_c : ALU_SEL_IMM;
     jump_o = jump_w;
     branch_o = branch_w;
     is_alu_o = is_alu_w;
-    load_o = load_w;
-    store_o = store_w;
-    ldu_op_o = ldu_op_w;
-    stu_op_o = stu_op_w;
+    load_o = is_float_instruction ? f_load_w : load_w;
+    store_o = is_float_instruction ? f_store_w : store_w;
+    ldu_op_o = f_load_w ? LDU_LW : ldu_op_w;
+    stu_op_o = f_store_w ? STU_SW : stu_op_w;
+    float_op_o = f_fu_function;
     uses_rd_o = uses_rd_w;
-    rd_address_o = rd_address_w;
+    rd_address_o = is_float_instruction ? f_rd_address : rd_address_w;
     csr_read_o = csr_read_w;
     csr_write_o = csr_write_w;
     mret_o = mret_w;
@@ -677,6 +730,7 @@ always @(*) begin
     is_mext_o = is_mext_w;
     aq_o = aq_w;
     rl_o = rl_w;
+    float_roundingMode_o = roundingMode;
 end
 
 endmodule

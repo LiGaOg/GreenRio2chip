@@ -1,5 +1,5 @@
-`ifdef VERILATOR
-`include "params.vh"
+`ifdef SYNTHESIS
+// `include "../params.vh"
 `endif
 
 module csr_regfile (
@@ -19,9 +19,19 @@ module csr_regfile (
     input wire [EXCEPTION_CAUSE_WIDTH - 1: 0] excp_cause_i,
     input wire [PC_WIDTH - 1: 0] excp_pc_i,
 
+
     // xRET inst
     input wire m_ret_i,
     input wire s_ret_i,
+
+    input wire fu2csr_falu1_fflags_ok_i,
+    input wire fu2csr_falu2_fflags_ok_i,
+    input wire fu2csr_falu1_fflags_valid_i,
+    input wire fu2csr_falu2_fflags_valid_i,
+    input wire fu2csr_fdivsqrt_fflags_valid_i,
+    input wire [4:0] fu2csr_falu1_wrb_fflags,
+    input wire [4:0] fu2csr_falu2_wrb_fflags,
+    input wire [4:0] fu2csr_fdivsqrt_wrb_fflags,
 
     // to csru
     output reg [XLEN - 1: 0] csr_data_r_o,
@@ -36,6 +46,7 @@ module csr_regfile (
     output wire tsr_o,
     output wire tvm_o,
     output wire tw_o,
+    output wire[2:0] frm_o,
 
     // to mmu
     output wire [XLEN - 1: 0] mstatus_o,
@@ -100,6 +111,10 @@ reg s_soft_int_ex;
 reg s_timer_int_ex;
 reg s_ext_int_ex;
 
+/** fields in fcsr **/
+reg [4:0] fflags;
+reg [2:0] frm;
+
 wire interrupt_ex = status_mie & ((seie & s_ext_int_ex) | (stie & s_timer_int_ex) | (ssie & s_soft_int_ex));
 
 reg [EXCEPTION_CAUSE_WIDTH-1:0] dff_ecause;
@@ -140,6 +155,7 @@ wire [XLEN - 1: 0] sstatus;
 wire [XLEN - 1: 0] sip;
 wire [XLEN - 1: 0] sip_ex;
 wire [XLEN - 1: 0] sie;
+wire [31:0]        fcsr;
 
 reg [XLEN - 1: 0] tvec_out;
 
@@ -148,6 +164,7 @@ assign tvm_o = status_tvm;
 assign tw_o = status_tw;
 assign mstatus_o = mstatus;
 assign satp_o = satp;
+assign frm_o = frm;
 
 always @(*)
 begin: validata_address
@@ -272,6 +289,11 @@ begin: validata_address
             readable_o = 1;
             writeable_o = 1;
         end
+	12'h01, 12'h02, 12'h03:// fflags, frm and fcsr
+	begin
+		readable_o = 1;
+		writeable_o = 1;
+	end
         default:
         begin
             readable_o = 0;
@@ -319,7 +341,7 @@ begin: assign_csr_output
         12'h104: // sie
             csr_data_r_o = sie;
         12'h105: // stvec
-            csr_data_r_o = {stvec, 2'b00};
+            csr_data_r_o = stvec;
         12'h140: // sscratch
             csr_data_r_o = sscratch;
         12'h141: // sepc
@@ -338,6 +360,12 @@ begin: assign_csr_output
             csr_data_r_o = minstret;
         12'hc00: // cycle
             csr_data_r_o = mcycle;
+        12'h001: // fflags
+	    csr_data_r_o = { { (XLEN - 5){1'b0} }, fflags };
+        12'h002: // frm
+	    csr_data_r_o = { { (XLEN - 3){1'b0} }, frm };
+        12'h003: // fcsr
+	    csr_data_r_o = { { (XLEN - 8){1'b0} }, frm, fflags };
         default:
             csr_data_r_o = 0;
     endcase
@@ -442,7 +470,7 @@ assign sstatus = {
     status_sd,
     {29{1'b0}},
     status_uxl,
-    {12{12'b0}},
+    {12{1'b0}},
     status_mxr,
     status_sum,
     1'b0,
@@ -495,11 +523,17 @@ assign scause = {
     scause_code
 };
 
+assign fcsr = {
+	24'b0,
+	frm,
+	fflags
+};
+
+// update floating point fflags
+
 //! update inner signals of CSR Register file; if reset, current_mode_o = 3 (Machine Mode)
-always @(posedge clk)
-begin: update_inner_signals
-    if (rst)
-    begin
+always @(posedge clk) begin: update_inner_signals
+    if (rst) begin
         current_mode_o <= 2'b11;
         status_sie <= 0;
         status_mie <= 0;
@@ -541,17 +575,25 @@ begin: update_inner_signals
         stvec <= 0;
         sepc <= 0;
         satp <= 0;
-    end
-    else
-    begin
+	frm <= 0;
+	fflags <= 0;
+    end else begin
         current_mode_o <= next_mode;
-        if (!excp_pending_i)
-        begin
-            if (csr_w_i)
-            begin
+
+	if(fu2csr_falu1_fflags_ok_i && fu2csr_falu1_fflags_valid_i) begin
+		fflags <= fu2csr_falu1_wrb_fflags;
+	end
+	else if(fu2csr_falu2_fflags_ok_i && fu2csr_falu2_fflags_valid_i) begin
+		fflags <= fu2csr_falu2_wrb_fflags;
+	end
+	else if(fu2csr_fdivsqrt_fflags_valid_i) begin
+		fflags <= fu2csr_fdivsqrt_wrb_fflags;
+	end
+
+        if (!excp_pending_i) begin
+            if (csr_w_i) begin
                 case (csr_addr_w_i)
-                    12'h300: // mstatus
-                    begin
+                    12'h300: begin  // mstatus
                         status_sie  <= csr_data_w_i[1];
                         status_mie  <= csr_data_w_i[3];
                         status_spie <= csr_data_w_i[5];
@@ -567,8 +609,7 @@ begin: update_inner_signals
                     end
                     12'h305: // mtvec
                         mtvec <= csr_data_w_i;
-                    12'h304: // mie
-                    begin
+                    12'h304: begin  // mie
                         ssie <= csr_data_w_i[1];
                         stie <= csr_data_w_i[5];
                         mtie <= csr_data_w_i[7];
@@ -579,15 +620,13 @@ begin: update_inner_signals
                         mscratch <= csr_data_w_i;
                     12'h341: // mepc
                         mepc <= {csr_data_w_i[PC_WIDTH - 1: 1], 1'b0};
-                    12'h342: // mcause
-                    begin
+                    12'h342: begin  // mcause
                         mcause_code <= csr_data_w_i[EXCEPTION_CAUSE_WIDTH - 2: 0];
                         mcause_interrupt <= csr_data_w_i[XLEN - 1];
                     end
                     12'h343: // mtval
                         mtval <= csr_data_w_i;
-                    12'h344: // mip
-                    begin
+                    12'h344: begin  // mip
                         s_soft_int_ex  <= csr_data_w_i[1];
                         s_timer_int_ex <= csr_data_w_i[5];
                         s_ext_int_ex   <= csr_data_w_i[9];
@@ -596,8 +635,7 @@ begin: update_inner_signals
                         medeleg <= csr_data_w_i[15: 0];
                     12'h303: // mideleg
                         mideleg <= csr_data_w_i[11: 0];
-                    12'h100: // sstatus
-                    begin
+                    12'h100: begin  // sstatus
                         status_mxr  <= csr_data_w_i[19];
                         status_sum <= csr_data_w_i[18];
                         status_spp <= csr_data_w_i[8];
@@ -605,34 +643,38 @@ begin: update_inner_signals
                         status_sie <= csr_data_w_i[1];
                     end
                     12'h105: // stvec
-                        stvec <= csr_data_w_i[XLEN - 1: 2];
+                        stvec <= csr_data_w_i;
                     12'h141: // sepc
                         sepc <= {csr_data_w_i[XLEN - 1: 1], 1'b0};
-                    12'h142: // scause
-                    begin
+                    12'h142: begin  // scause
                         scause_code <= csr_data_w_i[EXCEPTION_CAUSE_WIDTH - 2: 0];
                         scause_interrupt <= csr_data_w_i[XLEN - 1];
                     end
                     12'h143: // stval
                         stval <= csr_data_w_i;
-                    12'h104: // sie
-                    begin
+                    12'h104: begin  // sie
                         ssie <= csr_data_w_i[1];
                         stie <= csr_data_w_i[5];
                         seie <= csr_data_w_i[9];
                     end
                     12'h140: // sscratch
                         sscratch <= csr_data_w_i;
-                    12'h042: // scause
-                    begin
+                    12'h042: begin  // scause
                         mcause_code <= csr_data_w_i[EXCEPTION_CAUSE_WIDTH - 2: 0];
                         mcause_interrupt <= csr_data_w_i[XLEN - 1];
                     end
                     12'h180: // satp
                         satp <= csr_data_w_i[XLEN - 1: 0];
+		    12'h001: // fflags
+			fflags <= csr_data_w_i[4:0];
+		    12'h002: // frm
+			frm <= csr_data_w_i[2:0];
+		    12'h003: begin//fcsr
+			fflags <= csr_data_w_i[4:0];
+			frm <= csr_data_w_i[7:5];
+		    end
                 endcase
-            end else if (m_ret_i)
-            begin
+            end else if (m_ret_i) begin
                 status_mie <= status_mpie;
                 status_mpie <= 1;
                 status_mpp <= 2'b00;
@@ -645,8 +687,7 @@ begin: update_inner_signals
                 s_soft_int_ex  <= 0;
                 s_timer_int_ex <= 0;
                 s_ext_int_ex   <= 0;
-            end else if (s_ret_i)
-            begin
+            end else if (s_ret_i) begin
                 status_sie <= status_spie;
                 status_spie <= 1;
                 status_spp <= 0;

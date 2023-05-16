@@ -1,6 +1,6 @@
-`ifdef VERILATOR
-`include "params.vh"
-`endif
+`ifndef SYNTHESIS
+`include "../params.vh"
+`endif // SYNTHESIS
 
 module core_top(
     input clk,
@@ -142,6 +142,8 @@ wire ft2dec_req_double_ready;
 wire dec2rcu_uses_rs1_first;
 wire dec2rcu_uses_rs1_second;
 wire dec2rcu_uses_rs2_first;
+wire dec2rcu_uses_rs3_first;
+wire dec2rcu_uses_rs3_second;
 wire dec2rcu_uses_rd_first;
 wire dec2rcu_uses_rd_second;
 wire dec2rcu_uses_csr_first;
@@ -156,6 +158,8 @@ wire [VIR_REG_ADDR_WIDTH-1:0] dec2rcu_rs1_address_first;
 wire [VIR_REG_ADDR_WIDTH-1:0] dec2rcu_rs1_address_second;
 wire [VIR_REG_ADDR_WIDTH-1:0] dec2rcu_rs2_address_first;
 wire [VIR_REG_ADDR_WIDTH-1:0] dec2rcu_rs2_address_second;
+wire [VIR_REG_ADDR_WIDTH-1:0] dec2rcu_rs3_address_first;
+wire [VIR_REG_ADDR_WIDTH-1:0] dec2rcu_rs3_address_second;
 wire [VIR_REG_ADDR_WIDTH-1:0] dec2rcu_rd_address_first;
 wire [VIR_REG_ADDR_WIDTH-1:0] dec2rcu_rd_address_second;
 wire [CSR_ADDR_LEN-1:0] dec2rcu_csr_address_first;
@@ -166,6 +170,12 @@ wire dec2rcu_sret_first;
 wire dec2rcu_sret_second;
 wire dec2rcu_wfi_first;
 wire dec2rcu_wfi_second;
+wire dec2rcu_float_first;
+wire dec2rcu_float_second;
+wire dec2rcu_is_falu_first;
+wire dec2rcu_is_falu_second;
+wire dec2rcu_is_fdivsqrt_first;
+wire dec2rcu_is_fdivsqrt_second;
 wire [EXCEPTION_CAUSE_WIDTH-1:0] dec2rcu_ecause_first;
 wire [EXCEPTION_CAUSE_WIDTH-1:0] dec2rcu_ecause_second;
 wire dec2rcu_exception_first;
@@ -176,6 +186,12 @@ wire dec2rcu_is_fence_first;
 wire dec2rcu_is_fence_second;
 wire [1:0] dec2rcu_fence_op_first;
 wire [1:0] dec2rcu_fence_op_second;
+wire [4:0] dec2rcu_falu_function_first;
+wire [4:0] dec2rcu_falu_function_second;
+wire [2:0] dec2rcu_float_rounding_mode_first;
+wire [2:0] dec2rcu_float_rounding_mode_second;
+wire [1:0] dec2rcu_float_fmt_first;
+wire [1:0] dec2rcu_float_fmt_second;
 wire dec2rcu_is_aext_first;
 wire dec2rcu_is_aext_second;
 wire dec2rcu_is_mext_first;
@@ -196,6 +212,8 @@ wire [1:0] dec2rcu_fu_select_a_first;
 wire [1:0] dec2rcu_fu_select_a_second;
 wire [1:0] dec2rcu_fu_select_b_first;
 wire [1:0] dec2rcu_fu_select_b_second;
+wire [1:0] dec2rcu_fu_select_c_first;
+wire [1:0] dec2rcu_fu_select_c_second;
 wire dec2rcu_jump_first;
 wire dec2rcu_jump_second;
 wire dec2rcu_branch_first;
@@ -224,13 +242,25 @@ wire global_sret                                           ;
 wire dec2rcu_uses_rs2_second                                     ;
 wire fu2rcu_alu1_resp_valid                                ;
 wire fu2rcu_alu2_resp_valid                                ;
+wire fu2rcu_falu1_resp_valid                                ;
+wire fu2rcu_falu2_resp_valid                                ;
 wire fu2rcu_md_wrb_resp_valid                                  ;
+wire fu2rcu_fdivsqrt_wrb_resp_valid                                  ;
+wire fu2rcu_fdivsqrt_wrb_fflags_valid				;
+wire [4:0] fu2rcu_fdivsqrt_wrb_fflags					;
+wire fu2rcu_falu1_fflags_ok;
+wire fu2rcu_falu2_fflags_ok;
+wire [4:0] fu2rcu_falu1_wrb_fflags				;
+wire [4:0] fu2rcu_falu2_wrb_fflags				;
 wire fu2rcu_lsu_done_valid                                   ;
 wire fu2rcu_csr_resp_valid                                ;
 wire [PHY_REG_ADDR_WIDTH-1:0] fu2rcu_alu1_wrb_prd_addr     ; 
 wire [PHY_REG_ADDR_WIDTH-1:0] fu2rcu_csr_wrb_addr     ;
 wire [PHY_REG_ADDR_WIDTH-1:0] fu2rcu_alu2_wrb_prd_addr     ; 
+wire [PHY_REG_ADDR_WIDTH-1:0] fu2rcu_falu1_wrb_prd_addr     ; 
+wire [PHY_REG_ADDR_WIDTH-1:0] fu2rcu_falu2_wrb_prd_addr     ; 
 wire [PHY_REG_ADDR_WIDTH-1:0] fu2rcu_md_wrb_prd_addr       ;
+wire [PHY_REG_ADDR_WIDTH-1:0] fu2rcu_fdivsqrt_wrb_prd_addr       ;
 wire fu2rcu_alu1_predict_miss                                   ;
 wire fu2rcu_alu1_branch_taken                                   ;
 wire [PC_WIDTH-1:0] fu2rcu_alu1_final_branch_pc                                ;
@@ -239,25 +269,41 @@ wire fu2rcu_alu2_branch_taken                                   ;
 wire [PC_WIDTH-1:0] fu2rcu_alu2_final_branch_pc                                ;
 wire [ROB_INDEX_WIDTH-1:0] fu2rcu_alu1_wrb_rob_index           ; 
 wire [ROB_INDEX_WIDTH-1:0] fu2rcu_alu2_wrb_rob_index           ;
+wire [ROB_INDEX_WIDTH-1:0] fu2rcu_falu1_wrb_rob_index           ; 
+wire [ROB_INDEX_WIDTH-1:0] fu2rcu_falu2_wrb_rob_index           ;
 wire [ROB_INDEX_WIDTH-1:0] fu2rcu_md_wrb_rob_index             ;
+wire [ROB_INDEX_WIDTH-1:0] fu2rcu_fdivsqrt_wrb_rob_index             ;
 wire [ROB_INDEX_WIDTH-1:0] fu2rcu_csr_wrb_rob_index           ;
 wire [XLEN-1:0] fu2rcu_alu1_wrb_data                   ; 
 wire [XLEN-1:0] fu2rcu_csr_wrb_data                   ; 
 wire [XLEN-1:0] fu2rcu_alu2_wrb_data                   ; 
+wire [XLEN-1:0] fu2rcu_falu1_wrb_data                   ; 
+wire [XLEN-1:0] fu2rcu_falu2_wrb_data                   ; 
 wire [XLEN-1:0] fu2rcu_lsu_comm_data                      ;
 wire [XLEN-1:0] fu2rcu_md_wrb_data                     ;
+wire [XLEN-1:0] fu2rcu_fdivsqrt_wrb_data                     ;
 reg  func_wrb_alu1_exp_i                                   ;
 reg  func_wrb_alu2_exp_i                                   ;
+reg  func_wrb_falu1_exp_i                                   ;
+reg  func_wrb_falu2_exp_i                                   ;
 reg  func_wrb_md_exp_i                                     ;
+reg  func_wrb_fdivsqrt_exp_i                                     ;
 wire fu2rcu_csr_exception                                   ;
 reg  [EXCEPTION_CAUSE_WIDTH-1:0] func_wrb_alu1_ecause_i    ;
 reg  [EXCEPTION_CAUSE_WIDTH-1:0] func_wrb_alu2_ecause_i    ;
+reg  [EXCEPTION_CAUSE_WIDTH-1:0] func_wrb_falu1_ecause_i    ;
+reg  [EXCEPTION_CAUSE_WIDTH-1:0] func_wrb_falu2_ecause_i    ;
 reg  [EXCEPTION_CAUSE_WIDTH-1:0] func_wrb_md_ecause_i      ;
+reg  [EXCEPTION_CAUSE_WIDTH-1:0] func_wrb_fdivsqrt_ecause_i      ;
 wire [EXCEPTION_CAUSE_WIDTH-1:0] fu2rcu_csr_ecause    ;
 wire rcu2fu_alu1_req_valid                                  ;
 wire rcu2fu_alu2_req_valid                                  ;
+wire rcu2fu_falu1_req_valid                                  ;
+wire rcu2fu_falu2_req_valid                                  ;
 wire rcu2fu_md_req_ready                                    ;
 wire rcu2fu_md_req_valid                                    ;
+wire rcu2fu_fdivsqrt_req_ready                                    ;
+wire rcu2fu_fdivsqrt_req_valid                                    ;
 wire rcu2fu_csru_req_valid                                   ;
 wire [ROB_INDEX_WIDTH-1:0] rcu2fu_alu1_rob_index            ;
 wire [PHY_REG_ADDR_WIDTH-1:0] rcu2fu_alu1_prd_addr       ;
@@ -289,7 +335,32 @@ wire  rcu2fu_alu2_is_jump                                      ;
 wire  rcu2fu_alu2_is_branch                                    ;
 wire  rcu2fu_alu2_half                                      ;
 wire  rcu2fu_alu2_func_modifier                             ;
+
+wire [ROB_INDEX_WIDTH-1:0] rcu2fu_falu1_rob_index	    ;
+wire [PHY_REG_ADDR_WIDTH-1:0] rcu2fu_falu1_prd_addr          ;
+wire [4:0] rcu2fu_falu1_func5                                ;
+wire [2:0] rcu2fu_falu1_rounding_mode			    ;
+wire [1:0] rcu2fu_falu1_fmt				    ;
+wire [1:0] rcu2fu_falu1_opr1_sel                             ;
+wire [1:0] rcu2fu_falu1_opr2_sel                             ;
+wire [1:0] rcu2fu_falu1_opr3_sel                             ;
+wire [XLEN-1:0] rcu2fu_falu1_rs1_data                        ;
+wire [XLEN-1:0] rcu2fu_falu1_rs2_data                        ;
+wire [XLEN-1:0] rcu2fu_falu1_rs3_data                        ;
+
+wire [ROB_INDEX_WIDTH-1:0] rcu2fu_falu2_rob_index	    ;
+wire [PHY_REG_ADDR_WIDTH-1:0] rcu2fu_falu2_prd_addr          ;
+wire [4:0] rcu2fu_falu2_func5                                ;
+wire [2:0] rcu2fu_falu2_rounding_mode			    ;
+wire [1:0] rcu2fu_falu2_fmt				    ;
+wire [1:0] rcu2fu_falu2_opr1_sel                             ;
+wire [1:0] rcu2fu_falu2_opr2_sel                             ;
+wire [1:0] rcu2fu_falu2_opr3_sel                             ;
+wire [XLEN-1:0] rcu2fu_falu2_rs1_data                        ;
+wire [XLEN-1:0] rcu2fu_falu2_rs2_data                        ;
+wire [XLEN-1:0] rcu2fu_falu2_rs3_data                        ;
 wire [MD_DATA_WIDTH-1:0] rcu2fu_md_package                  ;
+wire [FDIVSQRT_DATA_WIDTH-1:0] rcu2fu_fdivsqrt_package                  ;
 wire [LSU_DATA_WIDTH-1:0] rcu2fu_lsu_package                ;
 wire [ROB_INDEX_WIDTH-1:0] rcu2fu_csru_rob_index             ;
 wire [PHY_REG_ADDR_WIDTH-1:0] rcu2fu_csru_prd_addr        ;
@@ -320,20 +391,24 @@ wire rcu2excp_cmt_is_wfi                                        ;
 wire global_predict_miss                                   ;
 
 `ifdef REG_TEST
-wire [5:0] rcu2prf_test_prd_first                 ;
-wire [5:0] rcu2prf_test_prd_second                ;
+wire [PHY_REG_ADDR_WIDTH-1:0] rcu2prf_test_prd_first                 ;
+wire [PHY_REG_ADDR_WIDTH-1:0] rcu2prf_test_prd_second                ;
 wire [XLEN-1:0] rcu2prf_test_rdata_first               ;
 wire [XLEN-1:0] rcu2prf_test_rdata_second              ;
 `endif
 
 wire [PHY_REG_ADDR_WIDTH-1:0]            rcu2prf_preg_prs1_address_first        ;
 wire [PHY_REG_ADDR_WIDTH-1:0]            rcu2prf_preg_prs2_address_first        ;
+wire [PHY_REG_ADDR_WIDTH-1:0]            rcu2prf_preg_prs3_address_first        ;
 wire [PHY_REG_ADDR_WIDTH-1:0]            rcu2prf_preg_prs1_address_second       ;
 wire [PHY_REG_ADDR_WIDTH-1:0]            rcu2prf_preg_prs2_address_second       ;
+wire [PHY_REG_ADDR_WIDTH-1:0]            rcu2prf_preg_prs3_address_second       ;
 wire [XLEN-1:0]                          prf2rcu_phyreg_first_rs1_data         ;
 wire [XLEN-1:0]                          prf2rcu_phyreg_first_rs2_data          ;
+wire [XLEN-1:0]                          prf2rcu_phyreg_first_rs3_data          ;
 wire [XLEN-1:0]                          prf2rcu_phyreg_second_rs1_data         ;
 wire [XLEN-1:0]                          prf2rcu_phyreg_second_rs2_data         ;
+wire [XLEN-1:0]                          prf2rcu_phyreg_second_rs3_data         ;
 wire [PHY_REG_ADDR_WIDTH-1:0]            rcu2prf_physical_alu1_csr_wrb_addr     ;
 wire [XLEN-1:0]                          rcu2prf_physical_alu1_csr_wrb_data     ;
 wire                                     rcu2prf_physical_alu1_csr_done_valid   ;
@@ -353,6 +428,8 @@ wire [XLEN-1:0] lsu_rs2_data       ;
 wire [IMM_LEN-1:0] lsu_imm            ;
 wire lsu_is_load        ;
 wire lsu_is_store       ;
+wire lsu_is_float	;
+wire [4:0] lsu_func5    ;
 wire [LDU_OP_WIDTH-1:0] rcu2fu_lsu_ld_opcode      ;
 wire [STU_OP_WIDTH-1:0] rcu2fu_lsu_st_opcode      ;
 wire [1:0] lsu_lsu_fence_op   ;
@@ -428,6 +505,7 @@ wire [EXCEPTION_CAUSE_WIDTH-1:0] excp2csr_ecause;
 wire csr2decode_tsr;
 wire csr2decode_tvm;
 wire csr2decode_tw;
+wire [2:0] csr2fu_frm;
 
 wire [XLEN-1 : 0] csr2mmu_mstatus;
 wire [XLEN-1 : 0] csr2mmu_satp;
@@ -450,11 +528,13 @@ wire                                                   ft2itlb_req_vld;
 wire [L1I_TAG_WIDTH-1:0]                               ft2itlb_if_req_vtag;
 wire                                                   ft2itlb_if_req_rdy;
 wire                                                   itlb2ft_if_resp_vld;
+wire [TRANSLATE_WIDTH-1:0][         PPN_WIDTH-1:0] itlb2icache_ic_ptag;
 
-wire [(TRANSLATE_WIDTH * EXCP_CAUSE_WIDTH) - 1:0] itlb2ft_resp_excp_cause; 
 
 wire [TRANSLATE_WIDTH-1:0] itlb2ft_resp_excp_vld;            //to-do
 wire [TRANSLATE_WIDTH*EXCP_CAUSE_WIDTH-1:0] itlb2ft_resp_excp_cause;    //to-do
+wire [TRANSLATE_WIDTH-1:0] itlb_translate_resp_miss_o;        //fetch & cache
+wire [TRANSLATE_WIDTH-1:0] itlb_translate_resp_hit_o;
 
 wire itlb_translate_resp_miss_w;
 wire itlb_translate_resp_hit_w;
@@ -555,6 +635,8 @@ decode decode_u(
     .uses_rs1_second_o(dec2rcu_uses_rs1_second),
     .uses_rs2_first_o(dec2rcu_uses_rs2_first),
     .uses_rs2_second_o(dec2rcu_uses_rs2_second),
+    .uses_rs3_first_o(dec2rcu_uses_rs3_first),
+    .uses_rs3_second_o(dec2rcu_uses_rs3_second),
     .uses_rd_first_o(dec2rcu_uses_rd_first),
     .uses_rd_second_o(dec2rcu_uses_rd_second),
     .uses_csr_first_o(dec2rcu_uses_csr_first),
@@ -569,6 +651,8 @@ decode decode_u(
     .rs1_address_second_o(dec2rcu_rs1_address_second),
     .rs2_address_first_o(dec2rcu_rs2_address_first),
     .rs2_address_second_o(dec2rcu_rs2_address_second),
+    .rs3_address_first_o(dec2rcu_rs3_address_first),
+    .rs3_address_second_o(dec2rcu_rs3_address_second),
     .rd_address_first_o(dec2rcu_rd_address_first),
     .rd_address_second_o(dec2rcu_rd_address_second),
     .csr_address_first_o(dec2rcu_csr_address_first),
@@ -579,6 +663,18 @@ decode decode_u(
     .sret_second_o(dec2rcu_sret_second),
     .wfi_first_o(dec2rcu_wfi_first),
     .wfi_second_o(dec2rcu_wfi_second),
+    .float_first_o(dec2rcu_float_first),
+    .float_second_o(dec2rcu_float_second),
+    .is_falu_first_o(dec2rcu_is_falu_first),
+    .is_falu_second_o(dec2rcu_is_falu_second),
+    .is_fdivsqrt_first_o(dec2rcu_is_fdivsqrt_first),
+    .is_fdivsqrt_second_o(dec2rcu_is_fdivsqrt_second),
+    .falu_function_first_o(dec2rcu_falu_function_first),
+    .falu_function_second_o(dec2rcu_falu_function_second),
+    .float_rounding_mode_first_o(dec2rcu_float_rounding_mode_first),
+    .float_rounding_mode_second_o(dec2rcu_float_rounding_mode_second),
+    .float_fmt_first_o(dec2rcu_float_fmt_first),
+    .float_fmt_second_o(dec2rcu_float_fmt_second),
     .ecause_first_o(dec2rcu_ecause_first),
     .ecause_second_o(dec2rcu_ecause_second),
     .exception_first_o(dec2rcu_exception_first),
@@ -609,6 +705,8 @@ decode decode_u(
     .fu_select_a_second_o(dec2rcu_fu_select_a_second),
     .fu_select_b_first_o(dec2rcu_fu_select_b_first),
     .fu_select_b_second_o(dec2rcu_fu_select_b_second),
+    .fu_select_c_first_o(dec2rcu_fu_select_c_first),
+    .fu_select_c_second_o(dec2rcu_fu_select_c_second),
     .jump_first_o(dec2rcu_jump_first),
     .jump_second_o(dec2rcu_jump_second),
     .branch_first_o(dec2rcu_branch_first),
@@ -645,26 +743,39 @@ physical_regfile #(
     `endif
     .prs1_address_first_i     (rcu2prf_preg_prs1_address_first)        ,
     .prs2_address_first_i     (rcu2prf_preg_prs2_address_first)        ,
+    .prs3_address_first_i     (rcu2prf_preg_prs3_address_first)        ,
     .prs1_address_second_i    (rcu2prf_preg_prs1_address_second)       ,
     .prs2_address_second_i    (rcu2prf_preg_prs2_address_second)       ,
+    .prs3_address_second_i    (rcu2prf_preg_prs3_address_second)       ,
 
     .prs1_data_first_o        (prf2rcu_phyreg_first_rs1_data)          ,
     .prs2_data_first_o        (prf2rcu_phyreg_first_rs2_data)          ,
+    .prs3_data_first_o        (prf2rcu_phyreg_first_rs3_data)          ,
     .prs1_data_second_o       (prf2rcu_phyreg_second_rs1_data)         ,
     .prs2_data_second_o       (prf2rcu_phyreg_second_rs2_data)         ,
+    .prs3_data_second_o       (prf2rcu_phyreg_second_rs3_data)	       ,
 
     .alu1_wrb_address_i       (rcu2prf_physical_alu1_csr_wrb_addr)     ,
     .alu2_wrb_address_i       (fu2rcu_alu2_wrb_prd_addr)       ,
+    .falu1_wrb_address_i      (fu2rcu_falu1_wrb_prd_addr)      ,
+    .falu2_wrb_address_i      (fu2rcu_falu2_wrb_prd_addr)      ,
     .lsu_wrb_address_i        (fu2rcu_lsu_wrb_addr)        ,
     .md_wrb_address_i         (fu2rcu_md_wrb_prd_addr)         ,
+    .fdivsqrt_wrb_address_i   (fu2rcu_fdivsqrt_wrb_prd_addr)   ,
     .alu1_wrb_data_i          (rcu2prf_physical_alu1_csr_wrb_data)     ,
     .alu2_wrb_data_i          (fu2rcu_alu2_wrb_data)       ,
+    .falu1_wrb_data_i         (fu2rcu_falu1_wrb_data)      ,
+    .falu2_wrb_data_i         (fu2rcu_falu2_wrb_data)      ,
     .lsu_wrb_data_i           (fu2rcu_lsu_comm_data)        ,
     .md_wrb_data_i            (fu2rcu_md_wrb_data)         ,
+    .fdivsqrt_wrb_data_i      (fu2rcu_fdivsqrt_wrb_data)   ,
     .alu1_rcu_resp_valid_i    (rcu2prf_physical_alu1_csr_done_valid)   ,
     .alu2_rcu_resp_valid_i    (fu2rcu_alu2_resp_valid)     ,
+    .falu1_rcu_resp_valid_i   (fu2rcu_falu1_resp_valid)    ,
+    .falu2_rcu_resp_valid_i   (fu2rcu_falu2_resp_valid)    ,
     .lsu_rcu_resp_valid_i     (fu2rcu_lsu_done_valid)      ,
-    .md_rcu_resp_valid_i      (fu2rcu_md_wrb_resp_valid)                           
+    .md_rcu_resp_valid_i      (fu2rcu_md_wrb_resp_valid)   ,                          
+    .fdivsqrt_rcu_resp_valid_i(fu2rcu_fdivsqrt_wrb_resp_valid)                           
 );
 
 rcu rcu_u(
@@ -681,6 +792,8 @@ rcu rcu_u(
     .uses_rs1_second_i(dec2rcu_uses_rs1_second),
     .uses_rs2_first_i(dec2rcu_uses_rs2_first),
     .uses_rs2_second_i(dec2rcu_uses_rs2_second),
+    .uses_rs3_first_i(dec2rcu_uses_rs3_first),
+    .uses_rs3_second_i(dec2rcu_uses_rs3_second),
     .uses_rd_first_i(dec2rcu_uses_rd_first),
     .uses_rd_second_i(dec2rcu_uses_rd_second),
     .uses_csr_first_i (dec2rcu_uses_csr_first),
@@ -695,6 +808,8 @@ rcu rcu_u(
     .rs1_address_second_i(dec2rcu_rs1_address_second),
     .rs2_address_first_i(dec2rcu_rs2_address_first),
     .rs2_address_second_i(dec2rcu_rs2_address_second),
+    .rs3_address_first_i(dec2rcu_rs3_address_first),
+    .rs3_address_second_i(dec2rcu_rs3_address_second),
     .rd_address_first_i(dec2rcu_rd_address_first),
     .rd_address_second_i(dec2rcu_rd_address_second),
     .csr_address_first_i(dec2rcu_csr_address_first),
@@ -713,12 +828,16 @@ rcu rcu_u(
     .half_second_i(dec2rcu_half_second),
     .is_fence_first_i(dec2rcu_is_fence_first),
     .is_fence_second_i(dec2rcu_is_fence_second),
+    .is_float_first_i(dec2rcu_float_first),
+    .is_float_second_i(dec2rcu_float_second),
     .fence_op_first_i(dec2rcu_fence_op_first),
     .fence_op_second_i(dec2rcu_fence_op_second),
     .is_aext_first_i(dec2rcu_is_aext_first),
     .is_aext_second_i(dec2rcu_is_aext_second),
     .is_mext_first_i(dec2rcu_is_mext_first),
     .is_mext_second_i(dec2rcu_is_mext_second),
+    .is_fdivsqrt_first_i(dec2rcu_is_fdivsqrt_first),
+    .is_fdivsqrt_second_i(dec2rcu_is_fdivsqrt_second),
     .csr_read_first_i(dec2rcu_csr_read_first),
     .csr_read_second_i(dec2rcu_csr_read_second),
     .csr_write_first_i(dec2rcu_csr_write_first),
@@ -727,18 +846,28 @@ rcu rcu_u(
     .imm_data_second_i(dec2rcu_imm_data_second),
     .fu_function_first_i(dec2rcu_fu_funtion_first),
     .fu_function_second_i(dec2rcu_fu_function_second),
+    .fu_float_function_first_i(dec2rcu_falu_function_first),
+    .fu_float_function_second_i(dec2rcu_falu_function_second),
+    .fu_float_rounding_mode_first_i(dec2rcu_float_rounding_mode_first),
+    .fu_float_rounding_mode_second_i(dec2rcu_float_rounding_mode_second),
+    .fu_float_fmt_first_i(dec2rcu_float_fmt_first),
+    .fu_float_fmt_second_i(dec2rcu_float_fmt_second),
     .alu_function_modifier_first_i(dec2rcu_alu_function_modifier_first),
     .alu_function_modifier_second_i(dec2rcu_alu_function_modifier_second),
     .fu_select_a_first_i(dec2rcu_fu_select_a_first),
     .fu_select_a_second_i(dec2rcu_fu_select_a_second),
     .fu_select_b_first_i(dec2rcu_fu_select_b_first),
     .fu_select_b_second_i(dec2rcu_fu_select_b_second),
+    .fu_select_c_first_i(dec2rcu_fu_select_c_first),
+    .fu_select_c_second_i(dec2rcu_fu_select_c_second),
     .jump_first_i(dec2rcu_jump_first),
     .jump_second_i(dec2rcu_jump_second),
     .branch_first_i(dec2rcu_branch_first),
     .branch_second_i(dec2rcu_branch_second),
     .is_alu_first_i(dec2rcu_is_alu_first),
     .is_alu_second_i(dec2rcu_is_alu_second),
+    .is_falu_first_i(dec2rcu_is_falu_first),
+    .is_falu_second_i(dec2rcu_is_falu_second),
     .load_first_i(dec2rcu_load_first),
     .load_second_i(dec2rcu_load_second),
     .store_first_i(dec2rcu_store_first),
@@ -753,14 +882,20 @@ rcu rcu_u(
     .rl_second_i(dec2rcu_rl_second),
     .func_alu1_done_valid_i(fu2rcu_alu1_resp_valid),
     .func_alu2_done_valid_i(fu2rcu_alu2_resp_valid),
+    .func_falu1_done_valid_i(fu2rcu_falu1_resp_valid),
+    .func_falu2_done_valid_i(fu2rcu_falu2_resp_valid),
     .func_lsu_done_valid_i(fu2rcu_lsu_done_valid),
     .func_md_done_valid_i(fu2rcu_md_wrb_resp_valid),
+    .func_fdivsqrt_done_valid_i(fu2rcu_fdivsqrt_wrb_resp_valid),
     .func_csru_done_valid_i(fu2rcu_csr_resp_valid),
     .physical_alu1_wrb_addr_i(fu2rcu_alu1_wrb_prd_addr), 
     .physical_csru_wrb_addr_i(fu2rcu_csr_wrb_addr),
     .physical_alu2_wrb_addr_i(fu2rcu_alu2_wrb_prd_addr), 
+    .physical_falu1_wrb_addr_i(fu2rcu_falu1_wrb_prd_addr), 
+    .physical_falu2_wrb_addr_i(fu2rcu_falu2_wrb_prd_addr), 
     .physical_lsu_wrb_addr_i(fu2rcu_lsu_wrb_addr), 
     .physical_md_wrb_addr_i(fu2rcu_md_wrb_prd_addr),
+    .physical_fdivsqrt_wrb_addr_i(fu2rcu_fdivsqrt_wrb_prd_addr),
     .alu1_predict_miss_i(fu2rcu_alu1_predict_miss),
     .alu1_branch_taken_i(fu2rcu_alu1_branch_taken),
     .alu1_final_branch_pc_i(fu2rcu_alu1_final_branch_pc),
@@ -769,28 +904,44 @@ rcu rcu_u(
     .alu2_final_branch_pc_i(fu2rcu_alu2_final_branch_pc),
     .func_alu1_rob_index_i(fu2rcu_alu1_wrb_rob_index),
     .func_alu2_rob_index_i(fu2rcu_alu2_wrb_rob_index),
+    .func_falu1_rob_index_i(fu2rcu_falu1_wrb_rob_index),
+    .func_falu2_rob_index_i(fu2rcu_falu2_wrb_rob_index),
     .func_lsu_rob_index_i(fu2rcu_lsu_comm_rob_index_fix),
     .func_md_rob_index_i(fu2rcu_md_wrb_rob_index),
+    .func_fdivsqrt_rob_index_i(fu2rcu_fdivsqrt_wrb_rob_index),
     .func_csru_rob_index_i(fu2rcu_csr_wrb_rob_index),
     .physical_alu1_wrb_data_i(fu2rcu_alu1_wrb_data), 
     .physical_csru_wrb_data_i(fu2rcu_csr_wrb_data), 
     .physical_alu2_wrb_data_i(fu2rcu_alu2_wrb_data), 
+    .physical_falu1_wrb_data_i(fu2rcu_falu1_wrb_data), 
+    .physical_falu2_wrb_data_i(fu2rcu_falu2_wrb_data), 
     .physical_lsu_wrb_data_i(fu2rcu_lsu_comm_data), 
     .physical_md_wrb_data_i(fu2rcu_md_wrb_data),
+    .physical_fdivsqrt_wrb_data_i(fu2rcu_fdivsqrt_wrb_data),
     .func_wrb_alu1_exp_i(func_wrb_alu1_exp_i),
     .func_wrb_alu2_exp_i(func_wrb_alu2_exp_i),
+    .func_wrb_falu1_exp_i(func_wrb_falu1_exp_i),
+    .func_wrb_falu2_exp_i(func_wrb_falu2_exp_i),
     .func_wrb_lsu_exp_i(fu2rcu_lsu_exception_vld),
     .func_wrb_md_exp_i(func_wrb_md_exp_i),
+    .func_wrb_fdivsqrt_exp_i(func_wrb_fdivsqrt_exp_i),
     .func_wrb_csru_exp_i(fu2rcu_csr_exception),
     .func_wrb_alu1_ecause_i(func_wrb_alu1_ecause_i),
     .func_wrb_alu2_ecause_i(func_wrb_alu2_ecause_i),
+    .func_wrb_falu1_ecause_i(func_wrb_falu1_ecause_i),
+    .func_wrb_falu2_ecause_i(func_wrb_falu2_ecause_i),
     .func_wrb_lsu_ecause_i(fu2rcu_lsu_ecause),
     .func_wrb_md_ecause_i(func_wrb_md_ecause_i),
+    .func_wrb_fdivsqrt_ecause_i(func_wrb_fdivsqrt_ecause_i),
     .func_wrb_csru_ecause_i(fu2rcu_csr_ecause),
     .rcu_alu1_req_valid_o(rcu2fu_alu1_req_valid),
     .rcu_alu2_req_valid_o(rcu2fu_alu2_req_valid),
+    .rcu_falu1_req_valid_o(rcu2fu_falu1_req_valid),
+    .rcu_falu2_req_valid_o(rcu2fu_falu2_req_valid),
     .rcu_md_req_ready_i(rcu2fu_md_req_ready),
     .rcu_md_req_valid_o(rcu2fu_md_req_valid),
+    .rcu_fdivsqrt_req_ready_i(rcu2fu_fdivsqrt_req_ready),
+    .rcu_fdivsqrt_req_valid_o(rcu2fu_fdivsqrt_req_valid),
     .rcu_lsu_req_ready_i(fu2rcu_lsu_req_ready),
     .rcu_lsu_req_valid_o(rcu2fu_lsu_req_valid),
     .rcu_csr_req_valid_o(rcu2fu_csru_req_valid),
@@ -826,7 +977,30 @@ rcu rcu_u(
     .rcu_alu2_branch_o(rcu2fu_alu2_is_branch),
     .rcu_alu2_half_o(rcu2fu_alu2_half),
     .rcu_alu2_func_modifier_o(rcu2fu_alu2_func_modifier),
+    .rcu_falu1_rob_index_o(rcu2fu_falu1_rob_index),
+    .rcu_falu1_prd_address_o(rcu2fu_falu1_prd_addr),
+    .rcu_falu1_func5_o(rcu2fu_falu1_func5),
+    .rcu_falu1_rounding_mode_o(rcu2fu_falu1_rounding_mode),
+    .rcu_falu1_fmt_o(rcu2fu_falu1_fmt),
+    .rcu_falu1_select_a_o(rcu2fu_falu1_opr1_sel),
+    .rcu_falu1_select_b_o(rcu2fu_falu1_opr2_sel),
+    .rcu_falu1_select_c_o(rcu2fu_falu1_opr3_sel),
+    .rcu_falu1_rs1_data_o(rcu2fu_falu1_rs1_data),
+    .rcu_falu1_rs2_data_o(rcu2fu_falu1_rs2_data),
+    .rcu_falu1_rs3_data_o(rcu2fu_falu1_rs3_data),
+    .rcu_falu2_rob_index_o(rcu2fu_falu2_rob_index),
+    .rcu_falu2_prd_address_o(rcu2fu_falu2_prd_addr),
+    .rcu_falu2_func5_o(rcu2fu_falu2_func5),
+    .rcu_falu2_rounding_mode_o(rcu2fu_falu2_rounding_mode),
+    .rcu_falu2_fmt_o(rcu2fu_falu2_fmt),
+    .rcu_falu2_select_a_o(rcu2fu_falu2_opr1_sel),
+    .rcu_falu2_select_b_o(rcu2fu_falu2_opr2_sel),
+    .rcu_falu2_select_c_o(rcu2fu_falu2_opr3_sel),
+    .rcu_falu2_rs1_data_o(rcu2fu_falu2_rs1_data),
+    .rcu_falu2_rs2_data_o(rcu2fu_falu2_rs2_data),
+    .rcu_falu2_rs3_data_o(rcu2fu_falu2_rs3_data),
     .rcu_md_package_o(rcu2fu_md_package),
+    .rcu_fdivsqrt_package_o(rcu2fu_fdivsqrt_package),
     .rcu_lsu_package_o(rcu2fu_lsu_package),
     .rcu_csr_rob_index_o(rcu2fu_csru_rob_index),
     .rcu_csr_prd_address_o(rcu2fu_csru_prd_addr),
@@ -860,12 +1034,16 @@ rcu rcu_u(
     `endif
     .rcu_prf_preg_prs1_address_first_o(rcu2prf_preg_prs1_address_first)        ,
     .rcu_prf_preg_prs2_address_first_o(rcu2prf_preg_prs2_address_first)        ,
+    .rcu_prf_preg_prs3_address_first_o(rcu2prf_preg_prs3_address_first)        ,
     .rcu_prf_preg_prs1_address_second_o(rcu2prf_preg_prs1_address_second)       ,
     .rcu_prf_preg_prs2_address_second_o(rcu2prf_preg_prs2_address_second)       ,
+    .rcu_prf_preg_prs3_address_second_o(rcu2prf_preg_prs3_address_second)       ,
     .prf_rcu_phyreg_first_rs1_data_i(prf2rcu_phyreg_first_rs1_data)         ,
     .prf_rcu_phyreg_first_rs2_data_i(prf2rcu_phyreg_first_rs2_data)          ,
+    .prf_rcu_phyreg_first_rs3_data_i(prf2rcu_phyreg_first_rs3_data)          ,
     .prf_rcu_phyreg_second_rs1_data_i(prf2rcu_phyreg_second_rs1_data)         ,
     .prf_rcu_phyreg_second_rs2_data_i(prf2rcu_phyreg_second_rs2_data)         ,
+    .prf_rcu_phyreg_second_rs3_data_i(prf2rcu_phyreg_second_rs3_data)         ,
     .rcu_prf_physical_alu1_csr_wrb_addr_o(rcu2prf_physical_alu1_csr_wrb_addr)     ,
     .rcu_prf_physical_alu1_csr_wrb_data_o(rcu2prf_physical_alu1_csr_wrb_data)     ,
     .rcu_prf_physical_alu1_csr_done_valid_o(rcu2prf_physical_alu1_csr_done_valid)   
@@ -877,6 +1055,8 @@ assign  {rcu2fu_lsu_rob_index     ,
         lsu_imm           , //imm
         lsu_is_load        ,
         lsu_is_store       , 
+	lsu_is_float       ,
+	lsu_func5	,
         rcu2fu_lsu_ld_opcode      ,
         rcu2fu_lsu_st_opcode      ,
         rcu2fu_lsu_fenced     ,       
@@ -898,28 +1078,46 @@ fu fu(
     .global_ret(global_ret),
     .global_predict_miss(global_predict_miss),
 
-
+    .csr_fu_frm_i(csr2fu_frm),
     .rcu_fu_alu1_rs1_i(rcu2fu_alu1_rs1_data),
     .rcu_fu_alu2_rs1_i(rcu2fu_alu2_rs1_data),
+    .rcu_fu_falu1_rs1_i(rcu2fu_falu1_rs1_data),
+    .rcu_fu_falu2_rs1_i(rcu2fu_falu2_rs1_data),
     .rcu_fu_alu1_rs2_i(rcu2fu_alu1_rs2_data),
     .rcu_fu_alu2_rs2_i(rcu2fu_alu2_rs2_data),
+    .rcu_fu_falu1_rs2_i(rcu2fu_falu1_rs2_data),
+    .rcu_fu_falu2_rs2_i(rcu2fu_falu2_rs2_data),
+    .rcu_fu_falu1_rs3_i(rcu2fu_falu1_rs3_data),
+    .rcu_fu_falu2_rs3_i(rcu2fu_falu2_rs3_data),
     .rcu_fu_alu1_imm_data_i(rcu2fu_alu1_imm_data),
     .rcu_fu_alu2_imm_data_i(rcu2fu_alu2_imm_data),
     .rcu_fu_alu1_opr1_sel_i(rcu2fu_alu1_opr1_sel),
     .rcu_fu_alu2_opr1_sel_i(rcu2fu_alu2_opr1_sel),
+    .rcu_fu_falu1_opr1_sel_i(rcu2fu_falu1_opr1_sel),
+    .rcu_fu_falu2_opr1_sel_i(rcu2fu_falu2_opr1_sel),
     .rcu_fu_alu1_opr2_sel_i(rcu2fu_alu1_opr2_sel),
     .rcu_fu_alu2_opr2_sel_i(rcu2fu_alu2_opr2_sel),
+    .rcu_fu_falu1_opr2_sel_i(rcu2fu_falu1_opr2_sel),
+    .rcu_fu_falu2_opr2_sel_i(rcu2fu_falu2_opr2_sel),
+    .rcu_fu_falu1_opr3_sel_i(rcu2fu_falu1_opr3_sel),
+    .rcu_fu_falu2_opr3_sel_i(rcu2fu_falu2_opr3_sel),
 
     .rcu_fu_alu1_rob_index_i(rcu2fu_alu1_rob_index),
     .rcu_fu_alu2_rob_index_i(rcu2fu_alu2_rob_index),
+    .rcu_fu_falu1_rob_index_i(rcu2fu_falu1_rob_index),
+    .rcu_fu_falu2_rob_index_i(rcu2fu_falu2_rob_index),
     .rcu_fu_alu1_prd_addr_i(rcu2fu_alu1_prd_addr),
     .rcu_fu_alu2_prd_addr_i(rcu2fu_alu2_prd_addr),
+    .rcu_fu_falu1_prd_addr_i(rcu2fu_falu1_prd_addr),
+    .rcu_fu_falu2_prd_addr_i(rcu2fu_falu2_prd_addr),
     .rcu_fu_alu1_is_branch_i(rcu2fu_alu1_is_branch),
     .rcu_fu_alu2_is_branch_i(rcu2fu_alu2_is_branch),
     .rcu_fu_alu1_is_jump_i(rcu2fu_alu1_is_jump),
     .rcu_fu_alu2_is_jump_i(rcu2fu_alu2_is_jump),
     .rcu_fu_alu1_req_valid_i(rcu2fu_alu1_req_valid),
     .rcu_fu_alu2_req_valid_i(rcu2fu_alu2_req_valid),
+    .rcu_fu_falu1_req_valid_i(rcu2fu_falu1_req_valid),
+    .rcu_fu_falu2_req_valid_i(rcu2fu_falu2_req_valid),
 
     .rcu_fu_alu1_half_i(rcu2fu_alu1_half),
     .rcu_fu_alu2_half_i(rcu2fu_alu2_half),
@@ -931,23 +1129,42 @@ fu fu(
     .rcu_fu_alu2_predict_pc_i(rcu2fu_alu2_predict_pc),
     .rcu_fu_alu1_func3_i(rcu2fu_alu1_func3),
     .rcu_fu_alu2_func3_i(rcu2fu_alu2_func3),
+    .rcu_fu_falu1_func5_i(rcu2fu_falu1_func5),
+    .rcu_fu_falu2_func5_i(rcu2fu_falu2_func5),
     .rcu_fu_alu1_func_modifier_i(rcu2fu_alu1_func_modifier),
     .rcu_fu_alu2_func_modifier_i(rcu2fu_alu2_func_modifier),
+    .rcu_fu_falu1_rounding_mode_i(rcu2fu_falu1_rounding_mode),
+    .rcu_fu_falu2_rounding_mode_i(rcu2fu_falu2_rounding_mode),
+    .rcu_fu_falu1_fmt_i(rcu2fu_falu1_fmt),
+    .rcu_fu_falu2_fmt_i(rcu2fu_falu2_fmt),
 
     .fu_rcu_alu1_resp_valid_o(fu2rcu_alu1_resp_valid),
     .fu_rcu_alu2_resp_valid_o(fu2rcu_alu2_resp_valid),
+    .fu_rcu_falu1_resp_valid_o(fu2rcu_falu1_resp_valid),
+    .fu_rcu_falu2_resp_valid_o(fu2rcu_falu2_resp_valid),
     .fu_rcu_alu1_wrb_rob_index_o(fu2rcu_alu1_wrb_rob_index),
     .fu_rcu_alu2_wrb_rob_index_o(fu2rcu_alu2_wrb_rob_index),
+    .fu_rcu_falu1_wrb_rob_index_o(fu2rcu_falu1_wrb_rob_index),
+    .fu_rcu_falu2_wrb_rob_index_o(fu2rcu_falu2_wrb_rob_index),
     .fu_rcu_alu1_wrb_prd_addr_o(fu2rcu_alu1_wrb_prd_addr),
     .fu_rcu_alu2_wrb_prd_addr_o(fu2rcu_alu2_wrb_prd_addr),
+    .fu_rcu_falu1_wrb_prd_addr_o(fu2rcu_falu1_wrb_prd_addr),
+    .fu_rcu_falu2_wrb_prd_addr_o(fu2rcu_falu2_wrb_prd_addr),
     .fu_rcu_alu1_wrb_data_o(fu2rcu_alu1_wrb_data),
     .fu_rcu_alu2_wrb_data_o(fu2rcu_alu2_wrb_data),
+    .fu_rcu_falu1_wrb_data_o(fu2rcu_falu1_wrb_data),
+    .fu_rcu_falu2_wrb_data_o(fu2rcu_falu2_wrb_data),
     .fu_rcu_alu1_branch_predict_miss_o(fu2rcu_alu1_predict_miss),
     .fu_rcu_alu2_branch_predict_miss_o(fu2rcu_alu2_predict_miss),
     .fu_rcu_alu1_branch_taken_o(fu2rcu_alu1_branch_taken),
     .fu_rcu_alu2_branch_taken_o(fu2rcu_alu2_branch_taken),
     .fu_rcu_alu1_final_next_pc_o(fu2rcu_alu1_final_branch_pc),
     .fu_rcu_alu2_final_next_pc_o(fu2rcu_alu2_final_branch_pc),
+
+    .fu_rcu_falu1_fflags_ok_o(fu2rcu_falu1_fflags_ok),
+    .fu_rcu_falu2_fflags_ok_o(fu2rcu_falu2_fflags_ok),
+    .fu_rcu_falu1_wrb_fflags_o(fu2rcu_falu1_wrb_fflags),
+    .fu_rcu_falu2_wrb_fflags_o(fu2rcu_falu2_wrb_fflags),
 
     .rcu_fu_md_package_i(rcu2fu_md_package),
     .rcu_fu_md_req_valid_i(rcu2fu_md_req_valid),
@@ -957,11 +1174,23 @@ fu fu(
     .fu_rcu_md_wrb_rob_index_o(fu2rcu_md_wrb_rob_index),
     .fu_rcu_md_wrb_data_o(fu2rcu_md_wrb_data),
     .fu_rcu_md_wrb_resp_valid_o(fu2rcu_md_wrb_resp_valid),
+    .rcu_fu_fdivsqrt_package_i(rcu2fu_fdivsqrt_package),
+    .rcu_fu_fdivsqrt_req_valid_i(rcu2fu_fdivsqrt_req_valid),
+    .rcu_fu_fdivsqrt_req_ready_o(rcu2fu_fdivsqrt_req_ready),
+
+    .fu_rcu_fdivsqrt_wrb_prd_addr_o(fu2rcu_fdivsqrt_wrb_prd_addr),
+    .fu_rcu_fdivsqrt_wrb_rob_index_o(fu2rcu_fdivsqrt_wrb_rob_index),
+    .fu_rcu_fdivsqrt_wrb_data_o(fu2rcu_fdivsqrt_wrb_data),
+    .fu_rcu_fdivsqrt_wrb_resp_valid_o(fu2rcu_fdivsqrt_wrb_resp_valid),
+    .fu_rcu_fdivsqrt_wrb_fflags_valid_o(fu2rcu_fdivsqrt_wrb_fflags_valid),
+    .fu_rcu_fdivsqrt_wrb_fflags_o(fu2rcu_fdivsqrt_wrb_fflags),
     
     .lsu_rdy_o(fu2rcu_lsu_req_ready),          
 
     .rcu_fu_lsu_vld_i(rcu2fu_lsu_req_valid),
     .rcu_fu_lsu_ls_i(rcu2fu_lsu_ls),
+    .rcu_fu_is_float(lsu_is_float),
+    .rcu_fu_func5(lsu_func5),
     .rcu_fu_lsu_st_opcode_i(rcu2fu_lsu_st_opcode),
     .rcu_fu_lsu_ld_opcode_i(rcu2fu_lsu_ld_opcode),
     .rcu_fu_lsu_fenced_i(rcu2fu_lsu_fenced_final),
@@ -1133,11 +1362,20 @@ csr_regfile csr_regfile_u(
     .tsr_o(csr2decode_tsr),
     .tvm_o(csr2decode_tvm),
     .tw_o(csr2decode_tw),
+    .frm_o(csr2fu_frm),
 
     .mstatus_o(csr2mmu_mstatus),
     .satp_o(csr2mmu_satp),
 
-    .interrupt_o(csr2excp_interrupt)
+    .interrupt_o(csr2excp_interrupt),
+    .fu2csr_falu1_fflags_ok_i(fu2rcu_falu1_fflags_ok),
+    .fu2csr_falu2_fflags_ok_i(fu2rcu_falu2_fflags_ok),
+    .fu2csr_falu1_fflags_valid_i(fu2rcu_falu1_resp_valid),
+    .fu2csr_falu2_fflags_valid_i(fu2rcu_falu2_resp_valid),
+    .fu2csr_fdivsqrt_fflags_valid_i(fu2rcu_fdivsqrt_wrb_fflags_valid),
+    .fu2csr_falu1_wrb_fflags(fu2rcu_falu1_wrb_fflags),
+    .fu2csr_falu2_wrb_fflags(fu2rcu_falu2_wrb_fflags),
+    .fu2csr_fdivsqrt_wrb_fflags(fu2rcu_fdivsqrt_wrb_fflags)
 );
 
 excep_ctrl exception_control(
@@ -1170,8 +1408,14 @@ always @(*) begin
     func_wrb_alu2_ecause_i = 0;
     func_wrb_alu1_exp_i = 0;
     func_wrb_alu1_ecause_i = 0;
+    func_wrb_falu2_exp_i = 0;
+    func_wrb_falu2_ecause_i = 0;
+    func_wrb_falu1_exp_i = 0;
+    func_wrb_falu1_ecause_i = 0;
     func_wrb_md_exp_i = 0;
     func_wrb_md_ecause_i = 0;
+    func_wrb_fdivsqrt_exp_i = 0;
+    func_wrb_fdivsqrt_ecause_i = 0;
 end
 
 
