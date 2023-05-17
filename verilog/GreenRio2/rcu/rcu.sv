@@ -476,7 +476,7 @@ reg [ROB_INDEX_WIDTH-1:0] select_first_rob_index     ;
 reg [PHY_REG_ADDR_WIDTH-1:0] select_first_prd_address   ;
 reg [2:0] select_first_func3         ;
 reg [4:0] select_first_func5	     ;
-reg select_first_rd_source	     ;
+
 reg [2:0] select_first_rounding_mode ;
 reg [1:0] select_first_fmt	     ;
 reg [PC_WIDTH-1:0] select_first_pc            ;
