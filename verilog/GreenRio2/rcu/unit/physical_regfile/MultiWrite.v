@@ -88,45 +88,45 @@ end
 
 always @ (*) begin
 	if (wr1_valid && first_num != 1) begin
-		wr_first_valid = wr1_valid;
-		wr_first_address = wr1_address;
-		wr_first_data = wr1_data;
+		wr_second_valid = wr1_valid;
+		wr_second_address = wr1_address;
+		wr_second_data = wr1_data;
 		first_num = 1;
 	end
 	else if (wr2_valid && first_num != 2) begin
-		wr_first_valid = wr2_valid;
-		wr_first_address = wr2_address;
-		wr_first_data = wr2_data;
+		wr_second_valid = wr2_valid;
+		wr_second_address = wr2_address;
+		wr_second_data = wr2_data;
 		first_num = 2;
 	end
 	else if (wr3_valid && first_num != 3) begin
-		wr_first_valid = wr3_valid;
-		wr_first_address = wr3_address;
-		wr_first_data = wr3_data;
+		wr_second_valid = wr3_valid;
+		wr_second_address = wr3_address;
+		wr_second_data = wr3_data;
 		first_num = 3;
 	end
 	else if (wr4_valid && first_num != 4) begin
-		wr_first_valid = wr4_valid;
-		wr_first_address = wr4_address;
-		wr_first_data = wr4_data;
+		wr_second_valid = wr4_valid;
+		wr_second_address = wr4_address;
+		wr_second_data = wr4_data;
 		first_num = 4;
 	end
 	else if (wr5_valid && first_num != 5) begin
-		wr_first_valid = wr5_valid;
-		wr_first_address = wr5_address;
-		wr_first_data = wr5_data;
+		wr_second_valid = wr5_valid;
+		wr_second_address = wr5_address;
+		wr_second_data = wr5_data;
 		first_num = 5;
 	end
 	else if (wr6_valid && first_num != 6) begin
-		wr_first_valid = wr6_valid;
-		wr_first_address = wr6_address;
-		wr_first_data = wr6_data;
+		wr_second_valid = wr6_valid;
+		wr_second_address = wr6_address;
+		wr_second_data = wr6_data;
 		first_num = 6;
 	end
 	else begin
-		wr_first_valid = 0;
-		wr_first_address = 0;
-		wr_first_data = 0;
+		wr_second_valid = 0;
+		wr_second_address = 0;
+		wr_second_data = 0;
 		first_num = 0;
 	end
 end

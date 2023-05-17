@@ -56,7 +56,7 @@ module fp_physical_regfile #(
 		    .wr2_address(falu2_wrb_address_i),
 		    .wr2_data(falu2_wrb_data_i),
 		    .wr3_valid(lsu_rcu_resp_valid_i),
-		    .wr3_address(lsu_wrb_address_i)
+		    .wr3_address(lsu_wrb_address_i),
 		    .wr3_data(lsu_wrb_data_i),
 		    .wr4_valid(fdivsqrt_rcu_resp_valid_i),
 		    .wr4_address(fdivsqrt_wrb_address_i),

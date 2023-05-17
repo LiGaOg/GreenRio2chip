@@ -70,7 +70,7 @@ module physical_regfile #(
 		    .wr2_address(alu2_wrb_address_i),
 		    .wr2_data(alu2_wrb_data_i),
 		    .wr3_valid(falu1_rcu_resp_valid_i),
-		    .wr3_address(falu1_wrb_address_i)
+		    .wr3_address(falu1_wrb_address_i),
 		    .wr3_data(falu1_wrb_data_i),
 		    .wr4_valid(falu2_rcu_resp_valid_i),
 		    .wr4_address(falu2_wrb_address_i),
