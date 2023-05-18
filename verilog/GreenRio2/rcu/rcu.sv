@@ -2110,7 +2110,7 @@ configurable_2mode_counter #(
     .clk(clk),
     .rst(rst | global_speculate_fault),
     .mode_i(do_rob_commit),
-    .cnt_rst_vector_i(4'b0),
+    .cnt_rst_vector_i({ROB_SIZE_WIDTH{0}}),
     .cnt_o(cmt_rob_index),
     .cnt_end_o()
 );
