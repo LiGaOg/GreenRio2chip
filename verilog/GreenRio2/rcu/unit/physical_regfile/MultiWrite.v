@@ -1,6 +1,6 @@
 module MultiWrite#(
-	parameter REG_ADDR_WIDTH = 3,
-	parameter REG_DATA_WIDTH = 4
+	parameter REG_ADDR_WIDTH = 6,
+	parameter REG_DATA_WIDTH = 64
 )
 (
 	input wr1_valid,
