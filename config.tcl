@@ -95,7 +95,7 @@ set ::env(VERILOG_FILES) "\
 	 $::env(DESIGN_DIR)/../../verilog/GreenRio2/rvh_mmu_v/rvh_mmu_mshr.v \
 	 $::env(DESIGN_DIR)/../../verilog/GreenRio2/rvh_mmu_v/rvh_mmu.v \
 	 $::env(DESIGN_DIR)/../../verilog/GreenRio2/rvh_mmu_v/rvh_monolithic_mmu.v \
-	 $::env(DESIGN_DIR)/../../verilog/GreenRio2/rcu/unit/physical_regfile/MultiWrite.sv \
+	 $::env(DESIGN_DIR)/../../verilog/GreenRio2/rcu/unit/physical_regfile/MultiWrite.v \
 	 $::env(DESIGN_DIR)/../../verilog/GreenRio2/rcu/unit/physical_regfile/physical_regfile.sv \
 	 $::env(DESIGN_DIR)/../../verilog/GreenRio2/rcu/unit/physical_regfile/fp_physical_regfile.sv \
 	 $::env(DESIGN_DIR)/../../verilog/GreenRio2/rcu/unit/f2if2o/f2if2o_freelist.v \
