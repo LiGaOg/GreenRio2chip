@@ -570,7 +570,7 @@ assign itlb_flush_done_clr = lsq_deque & lsq_entry_is_fence_req_vec[head];
 
 assign sfence_vma_asid_clr = lsq_deque & lsq_entry_ls_vec[head] & (lsq_entry_opcode_vec[head] == STU_SFENCE_VMA);
 
-wire dtlb_exception_vld = dtlb_lsq_vld_i & dtlb_lsq_exception_vld_i;
+assign dtlb_exception_vld = dtlb_lsq_vld_i & dtlb_lsq_exception_vld_i;
 
 assign lsq_exception_set = lsq_rcu_comm_vld_o & lsq_entry_vld_vec[head] & lsq_entry_exception_vld_vec[head] & ~wb_arb_lsq_prf_wb_vld_i;
 always @(posedge clk) begin
