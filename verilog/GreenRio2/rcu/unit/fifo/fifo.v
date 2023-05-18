@@ -89,7 +89,7 @@ module fifo #(
     ) wr_cnt(
         .clk(clk),
         .rst(rst),
-        .cnt_rst_vector_i(0),
+        .cnt_rst_vector_i({FIFO_SIZE_WIDTH{1'b0}}),
         .cnt_add_flag_i(wr_cnt_flag),
         .cnt_o(wr_line),
         .cnt_end_o(wr_line_end)
@@ -104,7 +104,7 @@ module fifo #(
     ) rd_cnt(
         .clk(clk),
         .rst(rst),
-        .cnt_rst_vector_i(0),
+        .cnt_rst_vector_i({FIFO_SIZE_WIDTH{1'b0}}),
         .cnt_add_flag_i(rd_cnt_flag),
         .cnt_o(rd_line),
         .cnt_end_o(rd_line_end)
