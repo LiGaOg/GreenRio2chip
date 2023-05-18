@@ -463,7 +463,6 @@ wire lsu_aext           ;
 wire                                          rcu2fu_lsu_ls;     
 wire                                          rcu2fu_lsu_fenced;
 wire [XLEN - 1 : 0]                           rcu2fu_agu_virt_base;
-wire [IMM_LEN - 1 : 0]                        lsu_imm;
 wire [XLEN-1:0]                               rcu2fu_agu_virt_offset;
 wire [ROB_INDEX_WIDTH - 1 : 0]                rcu2fu_lsu_rob_index;
 wire [PHY_REG_ADDR_WIDTH - 1 : 0]             rcu2fu_lsu_rd_addr;
