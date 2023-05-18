@@ -62,7 +62,7 @@ module rvh_monolithic_mmu (
 	parameter VPN_WIDTH = 27;
 	parameter PMP_ENTRY_COUNT = 8;
 	localparam PMPCFG_ENTRY_COUNT = PMP_ENTRY_COUNT / 8;
-	localparam PMPADDR_ID_WIDTH = $clog2(PMP_ENTRY_COUNT);
+	localparam PMPADDR_ID_WIDTH = 6;
 	localparam PMPCFG_ID_WIDTH = 3;
 	localparam PAGE_LVL_WIDTH = $clog2(VPN_WIDTH / 9);
 	localparam PPN_WIDTH = 44;
