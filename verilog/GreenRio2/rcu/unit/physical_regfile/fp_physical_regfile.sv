@@ -44,6 +44,9 @@ module fp_physical_regfile #(
 );
     reg [63:0] registers [REG_SIZE-1:0];
     integer i;
+    wire wr_first_valid, wr_second_valid;
+    wire [REG_SIZE_WIDTH-1:0] wr_first_address, wr_second_address;
+    wire [63:0] wr_first_data, wr_second_data;
     //P0 is always 0 and its finish bit is 1
     MultiWrite#(
 	    .REG_ADDR_WIDTH(REG_SIZE_WIDTH),
