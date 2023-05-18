@@ -58,7 +58,7 @@ module rvh_monolithic_mmu (
 	parameter PTW_ID_WIDTH = 1;
 	parameter TRANS_ID_WIDTH = 3;
 	parameter PADDR_WIDTH = 56;
-	parameter EXCP_CAUSE_WIDTH = 64;
+	parameter EXCP_CAUSE_WIDTH = 5;
 	parameter VPN_WIDTH = 27;
 	parameter PMP_ENTRY_COUNT = 8;
 	localparam PMPCFG_ENTRY_COUNT = PMP_ENTRY_COUNT / 8;
