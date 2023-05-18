@@ -28,13 +28,13 @@ module MultiWrite#(
 	input [REG_DATA_WIDTH - 1 : 0] wr6_data,
 	
 
-	output wr_first_valid,
-	output [REG_ADDR_WIDTH - 1 : 0] wr_first_address,
-	output [REG_DATA_WIDTH - 1 : 0] wr_first_data,
+	output reg wr_first_valid,
+	output reg [REG_ADDR_WIDTH - 1 : 0] wr_first_address,
+	output reg [REG_DATA_WIDTH - 1 : 0] wr_first_data,
 
-	output wr_second_valid,
-	output [REG_ADDR_WIDTH - 1 : 0] wr_second_address,
-	output [REG_DATA_WIDTH - 1 : 0] wr_second_data
+	output reg wr_second_valid,
+	output reg [REG_ADDR_WIDTH - 1 : 0] wr_second_address,
+	output reg [REG_DATA_WIDTH - 1 : 0] wr_second_data
 	
 );
 
