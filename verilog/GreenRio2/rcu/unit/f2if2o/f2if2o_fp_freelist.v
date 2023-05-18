@@ -145,7 +145,7 @@ module f2if2o_fp_freelist #( //fifo for probable two input and probable two outp
         .clk(clk),
         .rst(rst),
         .mode_i(wr_cnt_flag),
-        .cnt_rst_vector_i(6'b0),
+        .cnt_rst_vector_i({FIFO_SIZE_WIDTH{1'b0}}),
         .cnt_o(wr_line),
         .cnt_end_o(wr_line_end)
     );
@@ -175,7 +175,7 @@ module f2if2o_fp_freelist #( //fifo for probable two input and probable two outp
         .clk(clk),
         .rst(rst),
         .mode_i(rd_excep_cnt_flag),
-        .cnt_rst_vector_i(6'b0),
+        .cnt_rst_vector_i({FIFO_SIZE_WIDTH{1'b0}}),
         .cnt_o(rd_excep_line),
         .cnt_end_o(rd_excep_line_end)
     );
